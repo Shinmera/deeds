@@ -214,12 +214,11 @@
     (flet ((insert-test (test)
              (setf (gethash test testmap) (test-gensym test))))
       (dolist (handler handlers)
-        (let ((typetest `(typep ev ',(event-type handler)))
-              (filtertests (filter-tests (filter handler))))
+        (let ((typetest `(typep ev ',(event-type handler))))
           (insert-test typetest)
-          (dolist (test filtertests)
+          (dolist (test (filter-tests (filter handler)))
             (multiple-value-bind (test pure) (compile-test test (event-type handler))
-              (when pure
+              (when pure ;; If this is a test that includes a mutable field, we cannot cache it!
                 (insert-test test)
                 (pushnew test (gethash typetest typemap) :test 'equal)))))))
     (values
