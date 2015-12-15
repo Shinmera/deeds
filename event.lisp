@@ -15,6 +15,12 @@
   (:report (lambda (c s) (format s "Attempted to write ~s to slot ~a of ~a."
                                  (event-condition-value c) (event-condition-slot c) (event-condition-event c)))))
 
+(define-condition immutable-event-slot-has-writer (warning event-condition)
+  ((slot :initarg :slot :accessor event-condition-slot)
+   (writers :initarg :writers :accessor event-condition-writers))
+  (:report (lambda (c s) (format s "Defining writers ~s to an immutable slot ~a of ~a."
+                                 (event-condition-writers c) (event-condition-slot c) (event-condition-event c)))))
+
 (defclass event-class (standard-class)
   ())
 
@@ -39,6 +45,17 @@
 
 (defclass event-effective-slot-definition (event-slot c2mop:standard-effective-slot-definition)
   ())
+
+(defun check-event-slots (class slot-forms)
+  (dolist (form slot-forms)
+    (when (and (not (getf form :mutable)) (getf form :writers))
+      (warn 'immutable-event-slot-has-writer :event class :slot (getf form :name) :writers (getf form :writers)))))
+
+(defmethod initialize-instance :before ((class event-class) &key direct-slots &allow-other-keys)
+  (check-event-slots class direct-slots))
+
+(defmethod reinitialize-instance :before ((class event-class) &key direct-slots &allow-other-keys)
+  (check-event-slots class direct-slots))
 
 (defmethod c2mop:direct-slot-definition-class ((class event-class) &rest initargs)
   (declare (ignore initargs))
