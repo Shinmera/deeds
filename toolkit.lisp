@@ -30,19 +30,22 @@
                    (find slot-ish (c2mop:slot-definition-readers slot) :test #'name~=))
           do (return slot))))
 
+(defun build-fuzzy-slot-accessor (slot-ish class instance)
+  (let* ((slot (or (find-class-slot-fuzzy slot-ish class)
+                   (error "Don't know how to access the variable ~s in class ~s" slot-ish class)))
+         (accessor (find-slot-accessor slot)))
+    (values
+     (cond (accessor
+            `(,accessor ,instance))
+           (T
+            `(slot-value ,instance ',(c2mop:slot-definition-name slot))))
+     slot)))
+
 (defmacro with-fuzzy-slot-bindings (vars (instance class) &body body)
-  (labels ((build-suitable-accessor (slot-ish)
-             (let* ((slot (or (find-class-slot-fuzzy slot-ish class)
-                              (error "Don't know how to access the variable ~s in class ~s" slot-ish class)))
-                    (accessor (find-slot-accessor slot)))
-               (cond (accessor
-                      `(,accessor ,instance))
-                     (T
-                      `(slot-value ,instance ',(c2mop:slot-definition-name slot)))))))
-    `(symbol-macrolet ,(loop for var in vars
-                             collect (destructuring-bind (name &optional (slot-ish name)) (if (listp var) var (list var))
-                                       `(,name ',(build-suitable-accessor slot-ish))))
-       ,@body)))
+  `(symbol-macrolet ,(loop for var in vars
+                           collect (destructuring-bind (name &optional (slot-ish name)) (if (listp var) var (list var))
+                                     `(,name ',(build-fuzzy-slot-accessor slot-ish class instance))))
+     ,@body))
 
 (defun parse-into-kargs-and-body (body)
   (values (loop for list = body then rest
