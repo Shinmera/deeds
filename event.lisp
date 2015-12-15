@@ -31,7 +31,7 @@
   T)
 
 (defclass event-slot ()
-  ((mutable :initarg :mutable :initform T :accessor event-slot-mutable))
+  ((mutable :initarg :mutable :initform NIL :accessor event-slot-mutable))
   (:documentation "Superclass for event slots with an option"))
 
 (defclass event-direct-slot-definition (event-slot c2mop:standard-direct-slot-definition)
@@ -66,9 +66,9 @@
             :event event :slot (c2mop:slot-definition-name slotd) :value value)))
 
 (defclass event ()
-  ((issue-time :accessor issue-time)
-   (origin :initarg :origin :initform NIL :accessor origin)
-   (cancelled :initform NIL :accessor cancelled))
+  ((issue-time :accessor issue-time :mutable T)
+   (origin :initarg :origin :initform NIL :reader origin :mutable NIL)
+   (cancelled :initform NIL :accessor cancelled :mutable T))
   (:metaclass event-class))
 
 (defmacro define-event (name direct-superclasses direct-slots &rest options)
