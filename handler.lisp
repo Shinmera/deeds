@@ -15,8 +15,7 @@
 (defgeneric deregister-handler (handler event-loop))
 (defgeneric sort-handlers (handlers event-loop))
 (defgeneric ensure-handlers-sorted (event-loop))
-(defgeneric build-event-loop (event-loop))
-(defgeneric deliver (event handler event-loop))
+(defgeneric build-event-loop (handlers event-loop))
 
 (define-condition event-loop-condition ()
   ((event-loop :initarg :event-loop :accessor event-loop-condition-event-loop)))
@@ -64,6 +63,9 @@
 (defclass event-task (simple-tasks:task)
   ((event :initarg :event :accessor event-task-event)))
 
+(defclass blocking-event-task (event-task simple-tasks:blocking-task)
+  ())
+
 (defmethod simple-tasks:run-task ((event-task event-task))
   (handle (event-task-event event-task) (simple-tasks:runner event-task)))
 
@@ -76,7 +78,6 @@
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery event-delivery))
-  (setf (issue-time event) (get-universal-time))
   (simple-tasks:schedule-task
    (make-instance 'event-task :event event) event-delivery)
   event)
@@ -140,37 +141,127 @@
                   (error 'event-loop-handler-dependency-cycle-error
                          :handler node :event-loop event-loop))
                  (:uvisited
-                   (setf (gethash node nodes) :temporary)
-                   (dolist (target (gethash node edges))
-                     (visit target))
-                   (remhash node nodes)
-                   (push node sorted)))))
+                  (setf (gethash node nodes) :temporary)
+                  (dolist (target (gethash node edges))
+                    (visit target))
+                  (remhash node nodes)
+                  (when (typep node 'handler)
+                    (push node sorted))))))
       (loop while (with-hash-table-iterator (iterator nodes)
                     (multiple-value-bind (found node) (iterator)
                       (when found (visit node) T)))))
     sorted))
 
-(defmethod build-event-loop ((event-loop event-loop))
+(defun filter-tests (filter)
+  (let ((tests ()))
+    (labels ((r (part)
+               (when (listp part)
+                 (case (first part)
+                   ((and or) (dolist (part (rest part))
+                               (r part)))
+                   (not (r (second part)))
+                   (T (push part tests))))))
+      (r filter))
+    tests))
+
+(defun replace-tests (filter type testmap)
+  (labels ((r (part)
+             (if (listp part)
+                 (case (first part)
+                   ((and or) `(,(first part) ,@(mapcar #'r (rest part))))
+                   (not `(not ,(r (second part))))
+                   (T (multiple-value-bind (test pure) (compile-test part type)
+                        (if pure
+                            (gethash test testmap part)
+                            test))))
+                 part)))
+    (r filter)))
+
+(defun test-gensym (test)
+  (gensym (string (first test))))
+
+(defun compile-test (test type)
+  (let ((pure T))
+    (values `(,(first test)
+              ,@(loop for arg in (rest test)
+                      collect (typecase arg
+                                ((and symbol (not keyword))
+                                 (multiple-value-bind (accessor slot) (build-fuzzy-slot-accessor arg type 'ev)
+                                   (when (and (typep slot 'event-slot) (event-slot-mutable slot))
+                                     (setf pure NIL))
+                                   accessor))
+                                (T arg))))
+            pure)))
+
+(defun extract-tests (handlers)
+  ;; Really primitive, could be optimised a lot!
+  ;; 
+  ;; The initialisation of the tests is currently handled in a
+  ;; flat manner, however since there's a hierarchy in the
+  ;; events this should be reflected in the initialisation too
+  ;; and thus could avoid a lot of superfluous testing.
+  ;; 
+  ;; Additionally currently some tests can coincide under
+  ;; different type tests and would thus potentially get
+  ;; repeatedly done unnecessarily.
+  ;;
+  ;; Finally, some combinations could be optimised by being
+  ;; put into groups, rather than being done all for every
+  ;; handler, however that would require a completely
+  ;; different model of compiling these handlers.
+  (let ((testmap (make-hash-table :test 'equal))
+        (typemap (make-hash-table :test 'equal)))
+    (flet ((insert-test (test)
+             (setf (gethash test testmap) (test-gensym test))))
+      (dolist (handler handlers)
+        (let ((typetest `(typep ev ',(event-type handler)))
+              (filtertests (filter-tests (filter handler))))
+          (insert-test typetest)
+          (dolist (test filtertests)
+            (multiple-value-bind (test pure) (compile-test test (event-type handler))
+              (when pure
+                (insert-test test)
+                (pushnew test (gethash typetest typemap) :test 'equal)))))))
+    (values
+     (loop for test being the hash-keys of testmap
+           for symbol being the hash-values of testmap
+           collect (if (eql (first test) 'typep)
+                       `(,symbol ,test)
+                       symbol))
+     (loop for type being the hash-keys of typemap
+           for tests being the hash-values of typemap
+           collect `(when ,(gethash type testmap)
+                      ,@(loop for test in tests
+                              collect `(setf ,(gethash test testmap) ,test))))
+     (loop for handler in handlers
+           collect `(and ,(gethash `(typep ev ',(event-type handler)) testmap)
+                         ,(replace-tests (filter handler) (event-type handler) testmap))))))
+
+(defmethod build-event-loop (handlers (event-loop event-loop))
   ;; Oh boy!
-  `(lambda (ev)
-     ))
+  (multiple-value-bind (cache inits filters) (extract-tests handlers)
+    `(lambda (ev)
+       (declare (optimize speed))
+       (let ,cache
+         (declare (dynamic-extent ,@(loop for var in cache
+                                          collect (if (listp var) (car var) var))))
+         ,@inits
+         ,@(loop for filter in filters
+                 for handler in handlers
+                 collect `(when ,filter
+                            (issue ev ,handler)))))))
 
 (defmethod handle :around ((event event) (event-loop event-loop))
   (bt:with-recursive-lock-held ((event-loop-lock event-loop))
     (call-next-method)))
 
-(defmethod deliver ((event event) (handler handler) (event-loop event-loop))
-  (issue event handler))
-
-;; We simply bypass default actions and run in the same thread to block.
-(defmethod start ((blocking-handler blocking-handler))
-  blocking-handler)
-
-(defmethod stop ((blocking-handler blocking-handler))
-  blocking-handler)
+(defmethod issue :before ((event event) (event-loop event-loop))
+  (setf (issue-time event) (get-universal-time)))
 
 (defmethod issue ((event event) (blocking-handler blocking-handler))
-  (handle event blocking-handler))
+  (simple-tasks:schedule-task
+   (make-instance 'blocking-event-task :event event) blocking-handler)
+  event)
 
 (defmacro define-handler ((name event-type) args &body options-and-body)
   (destructuring-bind (ev &rest args) args
