@@ -46,6 +46,8 @@
     (format stream "~s" (simple-tasks:status event-delivery))))
 
 (defmethod start ((event-delivery event-delivery))
+  (when (simple-tasks:status= event-delivery :runing)
+    (cerror "Start anyway" "~a is already started!" event-delivery))
   (simple-tasks:make-runner-thread event-delivery)
   event-delivery)
 
@@ -276,31 +278,6 @@
    (make-instance 'blocking-event-task :event event) blocking-handler)
   event)
 
-(defmacro define-handler ((name event-type) args &body options-and-body)
-  (destructuring-bind (ev &rest args) args
-    (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-      (destructuring-bind (&rest options &key (loop '*standard-event-loop*) (class ''handler) &allow-other-keys) options
-        (let ((options (copy-list options))
-              (handler (gensym "HANDLER"))
-              (old (gensym "OLD-HANDLER")))
-          (remf options :loop)
-          (remf options :class)
-          `(let ((,handler (make-instance
-                            ,class
-                            ,@options
-                            :name ',name
-                            :event-type ',event-type
-                            :delivery-function
-                            (lambda (,ev)
-                              (declare (ignorable ,ev))
-                              (with-fuzzy-slot-bindings ,args (,ev ,event-type)
-                                ,@body)))))
-             (start ,handler)
-             (multiple-value-bind (,handler ,old) (register-handler ,handler ,loop)
-               (when ,old (stop ,old))
-               (values ,handler ,old))))))))
-
-
 (defclass event-task (simple-tasks:task)
   ((event :initarg :event :accessor event-task-event)))
 
@@ -309,7 +286,3 @@
 
 (defclass blocking-event-task (event-task simple-tasks:blocking-task)
   ())
-
-
-
-(start (setf *standard-event-loop* (make-instance 'event-loop)))
