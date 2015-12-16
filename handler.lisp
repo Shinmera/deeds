@@ -140,7 +140,7 @@
                  (:temporary
                   (error 'event-loop-handler-dependency-cycle-error
                          :handler node :event-loop event-loop))
-                 (:uvisited
+                 (:unvisited
                   (setf (gethash node nodes) :temporary)
                   (dolist (target (gethash node edges))
                     (visit target))
