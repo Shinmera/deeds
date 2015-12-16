@@ -6,6 +6,8 @@
 
 (in-package #:org.shirakumo.deeds)
 
+(defvar *standard-event-loop*)
+
 (defgeneric start (event-delivery))
 (defgeneric stop (event-delivery))
 (defgeneric issue (event event-delivery))
