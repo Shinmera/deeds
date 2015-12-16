@@ -94,18 +94,19 @@
       (gethash handler (handlers event-loop))))
 
 (defmethod register-handler ((handler handler) (event-loop event-loop))
+  ;; Secure against race conditions
   (let ((old (handler handler event-loop)))
     (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
     (ensure-handlers-sorted event-loop)
-    (let* ((loop-definition (build-event-loop event-loop))
+    (let* ((loop-definition (build-event-loop (handlers event-loop) event-loop))
            (compiled-loop (compile NIL loop-definition)))
       (bt:with-recursive-lock-held ((event-loop-lock event-loop))
         (when old (stop old))
-        (start handler)
         (setf (delivery-function event-loop) compiled-loop))))
   handler)
 
 (defmethod deregister-handler ((handler handler) (event-loop event-loop))
+  ;; Secure against race conditions
   (stop handler)
   (remhash (or (name handler) handler) (handlers event-loop))
   (setf (sorted-handlers) (remove handler (sorted-handlers event-loop)))
