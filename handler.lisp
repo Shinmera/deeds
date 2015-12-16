@@ -20,10 +20,14 @@
 (defgeneric build-event-loop (handlers event-loop))
 (defgeneric recompile-event-loop (event-loop))
 
-(defclass event-delivery (simple-tasks:queued-runner) ())
-(defclass event-loop (event-delivery) ())
+(defclass event-delivery () ())
+(defclass queued-event-delivery (event-delivery simple-tasks:queued-runner) ())
+(defclass event-loop (queued-event-delivery) ())
 (defclass handler (event-delivery) ())
-(defclass blocking-handler (handler) ())
+(defclass parallel-handler (handler) ())
+(defclass queued-handler (handler queued-event-delivery) ())
+(defclass locally-blocking-handler (handler) ())
+(defclass globally-blocking-handler (handler queued-event-delivery) ())
 (defclass event-task (simple-tasks:task) ())
 (defclass blocking-event-task (event-task) ())
 
@@ -36,37 +40,46 @@
                                  (event-loop-condition-event-loop c)
                                  (event-loop-condition-handler c)))))
 
-(defclass event-delivery (simple-tasks:queued-runner)
+(defclass event-delivery ()
   ((delivery-function :initarg :delivery-function :accessor delivery-function))
   (:default-initargs
    :delivery-function #'print))
 
-(defmethod print-object ((event-delivery event-delivery) stream)
-  (print-unreadable-object (event-delivery stream :type T :identity T)
-    (format stream "~s" (simple-tasks:status event-delivery))))
-
 (defmethod start ((event-delivery event-delivery))
-  (when (simple-tasks:status= event-delivery :runing)
-    (cerror "Start anyway" "~a is already started!" event-delivery))
-  (simple-tasks:make-runner-thread event-delivery)
   event-delivery)
 
 (defmethod stop ((event-delivery event-delivery))
-  (simple-tasks:stop-runner event-delivery)
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery event-delivery))
-  (simple-tasks:schedule-task
-   (make-instance 'event-task :event event) event-delivery)
+  (handle event event-delivery)
   event)
 
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
 
-(defclass event-loop (event-delivery)
+(defclass queued-event-delivery (event-delivery simple-tasks:queued-runner)
+  ())
+
+(defmethod start ((event-delivery queued-event-delivery))
+  (when (simple-tasks:status= event-delivery :runing)
+    (cerror "Start anyway" "~a is already started!" event-delivery))
+  (simple-tasks:make-runner-thread event-delivery)
+  event-delivery)
+
+(defmethod stop ((event-delivery queued-event-delivery))
+  (simple-tasks:stop-runner event-delivery)
+  event-delivery)
+
+(defmethod issue ((event event) (event-delivery queued-event-delivery))
+  (simple-tasks:schedule-task
+   (make-instance 'event-task :event event) event-delivery)
+  event)
+
+(defclass event-loop (queued-event-delivery)
   ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
    (sorted-handlers :initform () :accessor sorted-handlers)
-   (lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
+   (lock :initform (bt:make-recursive-lock "Event loop lock") :accessor lock)))
 
 (defmethod handler ((name symbol) (event-loop event-loop))
   (gethash name (handlers event-loop)))
@@ -84,7 +97,7 @@
     (let* ((sorted-handlers (sort-handlers handlers event-loop))
            (loop-definition (build-event-loop sorted-handlers event-loop))
            (compiled-loop (compile-lambda loop-definition)))
-      (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+      (bt:with-recursive-lock-held ((lock event-loop))
         (setf (delivery-function event-loop) compiled-loop)
         (setf (sorted-handlers event-loop) sorted-handlers)
         (setf (handlers event-loop) handlers)))
@@ -93,7 +106,7 @@
 (defmethod deregister-handler ((handler handler) (event-loop event-loop))
   ;; Secure against race conditions
   (remhash (or (name handler) handler) (handlers event-loop))
-  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+  (bt:with-recursive-lock-held ((lock event-loop))
     (setf (sorted-handlers event-loop) (remove handler (sorted-handlers event-loop)))
     (recompile-event-loop event-loop))
   handler)
@@ -228,7 +241,7 @@
 (defmethod recompile-event-loop ((event-loop event-loop))
   (let* ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop))
          (compiled-loop (compile-lambda loop-definition)))
-    (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (bt:with-recursive-lock-held ((lock event-loop))
       (setf (delivery-function event-loop) compiled-loop)))
   event-loop)
 
@@ -247,7 +260,7 @@
                             (issue ev ,handler)))))))
 
 (defmethod handle :around ((event event) (event-loop event-loop))
-  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+  (bt:with-recursive-lock-held ((lock event-loop))
     (call-next-method)))
 
 (defmethod issue :before ((event event) (event-loop event-loop))
@@ -270,12 +283,34 @@
   (print-unreadable-object (handler stream :type T :identity T)
     (format stream "~:[~;~s ~s~] ~s" (name handler) :name (name handler) (simple-tasks:status handler))))
 
-(defclass blocking-handler (handler)
+(defclass parallel-handler (handler)
+  ((threads :initform () :accessor threads)
+   (lock :initform (bt:make-recursive-lock "parallel-handler lock") :accessor lock)))
+
+(defmethod issue ((event event) (parallel-handler parallel-handler))
+  (bt:with-lock-held ((lock parallel-handler))
+    (let (thread)
+      (setf thread (bt:make-thread (lambda ()
+                                     (unwind-protect
+                                          (handle event parallel-handler)
+                                       (bt:with-lock-held ((lock parallel-handler))
+                                         (setf (threads parallel-handler)
+                                               (remove thread (threads parallel-handler))))))
+                                   :name (format NIL "~a thread" parallel-handler)))
+      (push thread (threads parallel-handler)))))
+
+(defclass queued-handler (handler queued-event-delivery)
   ())
 
-(defmethod issue ((event event) (blocking-handler blocking-handler))
+(defclass locally-blocking-handler (handler)
+  ())
+
+(defclass globally-blocking-handler (handler queued-event-delivery)
+  ())
+
+(defmethod issue ((event event) (globally-blocking-handler globally-blocking-handler))
   (simple-tasks:schedule-task
-   (make-instance 'blocking-event-task :event event) blocking-handler)
+   (make-instance 'blocking-event-task :event event) globally-blocking-handler)
   event)
 
 (defclass event-task (simple-tasks:task)
