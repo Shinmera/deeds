@@ -309,3 +309,7 @@
 
 (defclass blocking-event-task (event-task simple-tasks:blocking-task)
   ())
+
+
+
+(start (setf *standard-event-loop* (make-instance 'event-loop)))
