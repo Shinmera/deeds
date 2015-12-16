@@ -44,7 +44,7 @@
 (defmacro with-fuzzy-slot-bindings (vars (instance class) &body body)
   `(symbol-macrolet ,(loop for var in vars
                            collect (destructuring-bind (name &optional (slot-ish name)) (if (listp var) var (list var))
-                                     `(,name ',(build-fuzzy-slot-accessor slot-ish class instance))))
+                                     `(,name ,(build-fuzzy-slot-accessor slot-ish class instance))))
      ,@body))
 
 (defun parse-into-kargs-and-body (body)
