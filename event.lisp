@@ -88,6 +88,10 @@
    (cancelled :initform NIL :accessor cancelled :mutable T))
   (:metaclass event-class))
 
+(defmethod initialize-instance :around ((event event) &key)
+  (handler-bind ((immutable-event-slot-modified #'continue))
+    (call-next-method)))
+
 (defmacro define-event (name direct-superclasses direct-slots &rest options)
   (when (loop for super in direct-superclasses
               never (c2mop:subclassp (find-class super) (find-class 'event)))
