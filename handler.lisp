@@ -16,6 +16,7 @@
 (defgeneric sort-handlers (handlers event-loop))
 (defgeneric ensure-handlers-sorted (event-loop))
 (defgeneric build-event-loop (handlers event-loop))
+(defgeneric recompile-event-loop (event-loop))
 
 (define-condition event-loop-condition ()
   ((event-loop :initarg :event-loop :accessor event-loop-condition-event-loop)))
@@ -95,22 +96,24 @@
 
 (defmethod register-handler ((handler handler) (event-loop event-loop))
   ;; Secure against race conditions
-  (let ((old (handler handler event-loop)))
-    (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
-    (ensure-handlers-sorted event-loop)
-    (let* ((loop-definition (build-event-loop (handlers event-loop) event-loop))
+  (let ((old (handler handler event-loop))
+        (handlers (copy-hash-table (handlers event-loop))))
+    (setf (gethash (or (name handler) handler) handlers) handler)
+    (let* ((sorted-handlers (sort-handlers handlers event-loop))
+           (loop-definition (build-event-loop sorted-handlers event-loop))
            (compiled-loop (compile NIL loop-definition)))
       (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-        (when old (stop old))
-        (setf (delivery-function event-loop) compiled-loop))))
-  handler)
+        (setf (delivery-function event-loop) compiled-loop)
+        (setf (sorted-handlers event-loop) sorted-handlers)
+        (setf (handlers event-loop) handlers)))
+    (values handler old)))
 
 (defmethod deregister-handler ((handler handler) (event-loop event-loop))
   ;; Secure against race conditions
-  (stop handler)
   (remhash (or (name handler) handler) (handlers event-loop))
-  (setf (sorted-handlers) (remove handler (sorted-handlers event-loop)))
-  (rebuild-event-loop event-loop)
+  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (setf (sorted-handlers event-loop) (remove handler (sorted-handlers event-loop)))
+    (recompile-event-loop event-loop))
   handler)
 
 (defmethod ensure-handlers-sorted ((event-loop event-loop))
@@ -240,9 +243,12 @@
            collect `(and ,(gethash `(typep ev ',(event-type handler)) testmap)
                          ,(replace-tests (filter handler) (event-type handler) testmap))))))
 
-(defmethod build-event-loop ((handlers hash-table) event-loop)
-  (build-event-loop (loop for v being the hash-values of handlers collect v)
-                    event-loop))
+(defmethod recompile-event-loop ((event-loop event-loop))
+  (let* ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop))
+         (compiled-loop (compile NIL loop-definition)))
+    (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+      (setf (delivery-function event-loop) compiled-loop)))
+  event-loop)
 
 (defmethod build-event-loop ((handlers list) (event-loop event-loop))
   ;; Oh boy!
