@@ -83,14 +83,18 @@
             :event event :slot (c2mop:slot-definition-name slotd) :value value)))
 
 (defclass event ()
-  ((issue-time :accessor issue-time :mutable T)
-   (origin :initarg :origin :initform NIL :reader origin :mutable NIL)
+  ((issue-time :accessor issue-time :initform NIL :mutable T)
+   (origin :initarg :origin :initform *origin* :reader origin :mutable NIL)
    (cancelled :initform NIL :accessor cancelled :mutable T))
   (:metaclass event-class))
 
 (defmethod initialize-instance :around ((event event) &key)
   (handler-bind ((immutable-event-slot-modified #'continue))
     (call-next-method)))
+
+(defmethod print-object ((event event) stream)
+  (print-unreadable-object (event stream :type T :identity T)
+    (format stream "~@[~a ~]~s ~a" (when (issue-time event) (format-time (issue-time event))) :origin (origin event))))
 
 (defmacro define-event (name direct-superclasses direct-slots &rest options)
   (when (loop for super in direct-superclasses
