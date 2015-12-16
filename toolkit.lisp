@@ -54,3 +54,8 @@
                 collect key collect val
                 finally (setf body list))
           body))
+
+(defun copy-hash-table (old)
+  (let ((new (make-hash-table :test (hash-table-test old))))
+    (maphash (lambda (k v) (setf (gethash k new) v)) old)
+    new))
