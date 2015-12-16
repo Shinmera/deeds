@@ -56,7 +56,10 @@
           body))
 
 (defun copy-hash-table (old)
-  (let ((new (make-hash-table :test (hash-table-test old))))
+  (let ((new (make-hash-table :test (hash-table-test old)
+                              :size (hash-table-size old)
+                              :rehash-size (hash-table-rehash-size old)
+                              :rehash-threshold (hash-table-rehash-threshold old))))
     (maphash (lambda (k v) (setf (gethash k new) v)) old)
     new))
 
