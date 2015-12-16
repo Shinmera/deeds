@@ -155,7 +155,7 @@
 (defun filter-tests (filter)
   (let ((tests ()))
     (labels ((r (part)
-               (when (listp part)
+               (when (consp part)
                  (case (first part)
                    ((and or) (dolist (part (rest part))
                                (r part)))
