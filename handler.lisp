@@ -114,10 +114,13 @@
 
 (defmethod ensure-handlers-sorted ((event-loop event-loop))
   (setf (sorted-handlers event-loop)
-        (sort-handlers (loop for v being the hash-values of (handlers event-loop) collect v)
-                       event-loop)))
+        (sort-handlers (handlers event-loop) event-loop)))
 
-(defmethod sort-handlers (handlers (event-loop event-loop))
+(defmethod sort-handlers ((handlers hash-table) event-loop)
+  (sort-handlers (loop for v being the hash-values of handlers collect v)
+                 event-loop))
+
+(defmethod sort-handlers ((handlers list) (event-loop event-loop))
   ;; Graph time, yeah! We want to do a topological sort here.
   (let ((edges (make-hash-table :test 'eql))
         (nodes (make-hash-table :test 'eql))
@@ -236,7 +239,11 @@
            collect `(and ,(gethash `(typep ev ',(event-type handler)) testmap)
                          ,(replace-tests (filter handler) (event-type handler) testmap))))))
 
-(defmethod build-event-loop (handlers (event-loop event-loop))
+(defmethod build-event-loop ((handlers hash-table) event-loop)
+  (build-event-loop (loop for v being the hash-values of handlers collect v)
+                    event-loop))
+
+(defmethod build-event-loop ((handlers list) (event-loop event-loop))
   ;; Oh boy!
   (multiple-value-bind (cache inits filters) (extract-tests handlers)
     `(lambda (ev)
