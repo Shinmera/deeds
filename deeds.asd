@@ -15,8 +15,10 @@
   :serial T
   :components ((:file "package")
                (:file "toolkit")
+               (:file "origin")
                (:file "event")
                (:file "handler")
+               (:file "convenience")
                (:file "documentation"))
   :depends-on (:closer-mop
                :simple-tasks
