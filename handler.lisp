@@ -18,6 +18,13 @@
 (defgeneric build-event-loop (handlers event-loop))
 (defgeneric recompile-event-loop (event-loop))
 
+(defclass event-delivery (simple-tasks:queued-runner) ())
+(defclass event-loop (event-delivery) ())
+(defclass handler (event-delivery) ())
+(defclass blocking-handler (handler) ())
+(defclass event-task (simple-tasks:task) ())
+(defclass blocking-event-task (event-task) ())
+
 (define-condition event-loop-condition ()
   ((event-loop :initarg :event-loop :accessor event-loop-condition-event-loop)))
 
@@ -36,40 +43,6 @@
   (print-unreadable-object (event-delivery stream :type T :identity T)
     (format stream "~s" (simple-tasks:status event-delivery))))
 
-(defclass event-loop (event-delivery)
-  ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
-   (sorted-handlers :initform () :accessor sorted-handlers)
-   (lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
-
-(defclass handler (event-delivery)
-  ((name :initarg :name :reader name)
-   (event-type :initarg :event-type :reader event-type)
-   (filter :initarg :filter :reader filter)
-   (before :initarg :before :reader before)
-   (after :initarg :after :reader after))
-  (:default-initargs
-   :name NIL
-   :event-type 'event
-   :filter NIL
-   :before ()
-   :after ()))
-
-(defmethod print-object ((handler handler) stream)
-  (print-unreadable-object (handler stream :type T :identity T)
-    (format stream "~:[~;~s ~s~] ~s" (name handler) :name (name handler) (simple-tasks:status handler))))
-
-(defclass blocking-handler (handler)
-  ())
-
-(defclass event-task (simple-tasks:task)
-  ((event :initarg :event :accessor event-task-event)))
-
-(defclass blocking-event-task (event-task simple-tasks:blocking-task)
-  ())
-
-(defmethod simple-tasks:run-task ((event-task event-task))
-  (handle (event-task-event event-task) (simple-tasks:runner event-task)))
-
 (defmethod start ((event-delivery event-delivery))
   (simple-tasks:make-runner-thread event-delivery)
   event-delivery)
@@ -85,6 +58,11 @@
 
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
+
+(defclass event-loop (event-delivery)
+  ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
+   (sorted-handlers :initform () :accessor sorted-handlers)
+   (lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
 
 (defmethod handler ((name symbol) (event-loop event-loop))
   (gethash name (handlers event-loop)))
@@ -271,6 +249,26 @@
 (defmethod issue :before ((event event) (event-loop event-loop))
   (setf (issue-time event) (get-universal-time)))
 
+(defclass handler (event-delivery)
+  ((name :initarg :name :reader name)
+   (event-type :initarg :event-type :reader event-type)
+   (filter :initarg :filter :reader filter)
+   (before :initarg :before :reader before)
+   (after :initarg :after :reader after))
+  (:default-initargs
+   :name NIL
+   :event-type 'event
+   :filter NIL
+   :before ()
+   :after ()))
+
+(defmethod print-object ((handler handler) stream)
+  (print-unreadable-object (handler stream :type T :identity T)
+    (format stream "~:[~;~s ~s~] ~s" (name handler) :name (name handler) (simple-tasks:status handler))))
+
+(defclass blocking-handler (handler)
+  ())
+
 (defmethod issue ((event event) (blocking-handler blocking-handler))
   (simple-tasks:schedule-task
    (make-instance 'blocking-event-task :event event) blocking-handler)
@@ -294,3 +292,13 @@
                (with-fuzzy-slot-bindings ,args (,ev ,event-type)
                  ,@body)))
             ,loop))))))
+
+
+(defclass event-task (simple-tasks:task)
+  ((event :initarg :event :accessor event-task-event)))
+
+(defmethod simple-tasks:run-task ((event-task event-task))
+  (handle (event-task-event event-task) (simple-tasks:runner event-task)))
+
+(defclass blocking-event-task (event-task simple-tasks:blocking-task)
+  ())
