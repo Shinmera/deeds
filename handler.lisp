@@ -221,7 +221,7 @@
                               collect `(setf ,(gethash test testmap) ,test))))
      (loop for handler in handlers
            collect `(and ,(gethash `(typep ev ',(event-type handler)) testmap)
-                         ,(replace-tests (filter handler) (event-type handler) testmap))))))
+                         ,(or (replace-tests (filter handler) (event-type handler) testmap) T))))))
 
 (defmethod recompile-event-loop ((event-loop event-loop))
   (let* ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop))
