@@ -15,7 +15,7 @@
 (defmacro define-handler ((name event-type) args &body options-and-body)
   (destructuring-bind (ev &rest args) args
     (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-      (destructuring-bind (&rest options &key (loop '*standard-event-loop*) (class ''handler) filter (self (gensym "SELF")) &allow-other-keys) options
+      (destructuring-bind (&rest options &key (loop '*standard-event-loop*) (class ''queued-handler) filter (self (gensym "SELF")) &allow-other-keys) options
         (let ((options (removef options :loop :class :filter :self))
               (old (gensym "OLD-HANDLER")))
           `(let (,self)
