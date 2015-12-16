@@ -59,3 +59,13 @@
   (let ((new (make-hash-table :test (hash-table-test old))))
     (maphash (lambda (k v) (setf (gethash k new) v)) old)
     new))
+
+(defun format-time (universal-time)
+  (multiple-value-bind (s m h dd mm yy) (decode-universal-time universal-time)
+    (format NIL "~4,'0d.~2,'0d.~2,'0d ~2,'0d:~2,'0d:~2,'0d" yy mm dd h m s)))
+
+(defun removef (list &rest remove-properties)
+  (let ((copy (copy-list list)))
+    (dolist (prop remove-properties)
+      (remf copy prop))
+    copy))
