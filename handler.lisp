@@ -83,7 +83,7 @@
     (setf (gethash (or (name handler) handler) handlers) handler)
     (let* ((sorted-handlers (sort-handlers handlers event-loop))
            (loop-definition (build-event-loop sorted-handlers event-loop))
-           (compiled-loop (compile NIL loop-definition)))
+           (compiled-loop (compile-lambda loop-definition)))
       (bt:with-recursive-lock-held ((event-loop-lock event-loop))
         (setf (delivery-function event-loop) compiled-loop)
         (setf (sorted-handlers event-loop) sorted-handlers)
@@ -227,7 +227,7 @@
 
 (defmethod recompile-event-loop ((event-loop event-loop))
   (let* ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop))
-         (compiled-loop (compile NIL loop-definition)))
+         (compiled-loop (compile-lambda loop-definition)))
     (bt:with-recursive-lock-held ((event-loop-lock event-loop))
       (setf (delivery-function event-loop) compiled-loop)))
   event-loop)

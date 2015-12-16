@@ -72,3 +72,8 @@
     (dolist (prop remove-properties)
       (remf copy prop))
     copy))
+
+(defun compile-lambda (lambda)
+  (handler-bind ((style-warning #'muffle-warning)
+                 #+sbcl (sb-ext:compiler-note #'muffle-warning))
+    (compile NIL lambda)))
