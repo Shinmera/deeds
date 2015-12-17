@@ -40,6 +40,15 @@
                                  (event-loop-condition-event-loop c)
                                  (event-loop-condition-handler c)))))
 
+(define-condition handler-condition ()
+  ((handler :initarg :handler :accessor handler-condition-handler)))
+
+(define-condition handler-thread-stop-failed-warning (warning handler-condition)
+  ((thread :initarg :thread :accessor handler-condition-thread))
+  (:report (lambda (c s) (format s "Thread ~a of handler ~a did not stop."
+                                 (handler-condition-thread c)
+                                 (handler-condition-handler c)))))
+
 (defclass event-delivery ()
   ((delivery-function :initarg :delivery-function :accessor delivery-function))
   (:default-initargs
@@ -292,12 +301,24 @@
     (let (thread)
       (setf thread (bt:make-thread (lambda ()
                                      (unwind-protect
-                                          (handle event parallel-handler)
+                                          (with-simple-restart (abort "Stop the handler thread.")
+                                            (handle event parallel-handler))
                                        (bt:with-lock-held ((lock parallel-handler))
                                          (setf (threads parallel-handler)
                                                (remove thread (threads parallel-handler))))))
                                    :name (format NIL "~a thread" parallel-handler)))
       (push thread (threads parallel-handler)))))
+
+(defmethod stop ((parallel-handler parallel-handler))
+  (loop for thread = (bt:with-lock-held ((lock parallel-handler))
+                       (pop (threads parallel-handler)))
+        while thread
+        do (bt:interrupt-thread thread (lambda () (abort)))
+           (loop repeat 100
+                 do (unless (bt:thread-alive-p thread) (return))
+                    (sleep 0.01)
+                 finally (warn 'handler-thread-stop-failed-warning
+                               :thread thread :handler parallel-handler))))
 
 (defclass queued-handler (handler queued-event-delivery)
   ())
