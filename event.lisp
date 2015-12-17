@@ -6,21 +6,6 @@
 
 (in-package #:org.shirakumo.deeds)
 
-(define-condition event-condition (condition)
-  ((event :initarg :event :accessor event-condition-event)))
-
-(define-condition immutable-event-slot-modified (error event-condition)
-  ((slot :initarg :slot :accessor event-condition-slot)
-   (value :initarg :value :accessor event-condition-value))
-  (:report (lambda (c s) (format s "Attempted to write ~s to slot ~a of ~a."
-                                 (event-condition-value c) (event-condition-slot c) (event-condition-event c)))))
-
-(define-condition immutable-event-slot-has-writer (warning event-condition)
-  ((slot :initarg :slot :accessor event-condition-slot)
-   (writers :initarg :writers :accessor event-condition-writers))
-  (:report (lambda (c s) (format s "Defining writers ~s to an immutable slot ~a of ~a."
-                                 (event-condition-writers c) (event-condition-slot c) (event-condition-event c)))))
-
 (defclass event-class (standard-class)
   ())
 
