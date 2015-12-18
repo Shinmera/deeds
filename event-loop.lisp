@@ -168,7 +168,8 @@
     (values
      (loop for test being the hash-keys of testmap
            for symbol being the hash-values of testmap
-           collect (if (eql (first test) 'typep)
+           collect (if (and (eql (first test) 'typep)
+                            (eql (second test) 'ev))
                        `(,symbol ,test)
                        symbol))
      (loop for type being the hash-keys of typemap
