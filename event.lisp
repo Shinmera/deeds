@@ -87,10 +87,65 @@
     (push 'event direct-superclasses))
   (pushnew `(:metaclass event-class) options
            :test #'(lambda (a b) (eql (car a) (car b))))
-  `(defclass ,name ,direct-superclasses
-     ,direct-slots
-     ,@options))
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (defclass ,name ,direct-superclasses
+       ,direct-slots
+       ,@options)))
 
 (defgeneric cancel (event)
   (:method ((event event))
     (setf (cancelled event) T)))
+
+(define-event message-event ()
+  ((message :initarg :message :reader message))
+  (:default-initargs
+   :message (error "MESSAGE required.")))
+
+(define-event info-event (message-event)
+  ())
+
+(define-event warning-event (message-event)
+  ())
+
+(define-event error-event (message-event)
+  ())
+
+(define-event payload-event ()
+  ((payload :initarg :payload :reader payload))
+  (:default-initargs
+   :payload (error "PAYLOAD required.")))
+
+(define-event sequence-event ()
+  ((index :initarg :index :reader index))
+  (:default-initargs
+   :index (error "INDEX required.")))
+
+(define-event chunked-payload-event (payload-event sequence-event)
+  ((max-index :initarg :max-index :reader max-index))
+  (:default-initargs
+   :max-index (error "MAX-INDEX required.")))
+
+(define-event identified-event ()
+  ((identifier :initarg :identifier :reader identifier)))
+
+(defmethod initialize-instance :after ((identified-event identified-event) &key)
+  (unless (slot-boundp identified-event 'identifier)
+    (setf (slot-value identified-event 'identifier)
+          #+sbcl (sb-kernel:get-lisp-obj-address identified-event)
+          #-sbcl (sxhash identified-event))))
+
+(define-event stream-event (identified-event)
+  ())
+
+(define-event stream-begin-event (stream-event)
+  ())
+
+(define-event stream-payload-event (stream-event payload-event)
+  ()
+  (:default-initargs
+   :identifier (error "IDENTIFIER required.")))
+
+(define-event stream-end-event (stream-event)
+  ()
+  (:default-initargs
+   :identifier (error "IDENTIFIER required.")))
