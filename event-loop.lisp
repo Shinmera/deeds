@@ -7,6 +7,7 @@
 (in-package #:org.shirakumo.deeds)
 
 (defgeneric handler (handler event-loop))
+(defgeneric (setf handler) (handler event-loop))
 (defgeneric register-handler (handler event-loop))
 (defgeneric deregister-handler (handler event-loop))
 (defgeneric sort-handlers (handlers event-loop))
@@ -26,6 +27,9 @@
   (if (name handler)
       (handler (name handler) event-loop)
       (gethash handler (handlers event-loop))))
+
+(defmethod (setf handler) ((handler handler) (event-loop event-loop))
+  (setf (gethash (or (name handler) handler) (handlers event-loop)) handler))
 
 (defmethod register-handler ((handler handler) (event-loop event-loop))
   ;; Secure against race conditions
