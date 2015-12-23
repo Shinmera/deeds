@@ -363,7 +363,7 @@ See STREAM-EVENT"))
 
 ;; forward-class-definitions.lisp
 (setdocs
-  (event-condition
+  ((event-condition type)
    "Condition base class for conditions related to events.
 
 See EVENT-CONDITION-EVENT")
@@ -371,7 +371,7 @@ See EVENT-CONDITION-EVENT")
   (event-condition-event
    "The event that the event condition is about.")
   
-  (immutable-event-slot-modified
+  ((immutable-event-slot-modified type)
    "An error that is signalled whenever an attempt is made to modify an immutable slot.
 
 See EVENT-CONDITION
@@ -384,7 +384,7 @@ See EVENT-CONDITION-VALUE")
   (event-condition-value
    "The value that the event condition is about.")
   
-  (immutable-event-slot-has-writer
+  ((immutable-event-slot-has-writer type)
    "A warning that is signalled whenever an immutable slot is specified with a writer.
 
 See EVENT-CONDITION
@@ -394,7 +394,7 @@ See EVENT-CONDITION-WRITERS")
   (event-condition-writers
    "The writers that the event condition is about.")
   
-  (event-loop-condition
+  ((event-loop-condition type)
    "Condition base class for conditions related to event-loops.
 
 See EVENT-LOOP-CONDITION-EVENT-LOOP")
@@ -402,7 +402,7 @@ See EVENT-LOOP-CONDITION-EVENT-LOOP")
   (event-loop-condition-event-loop
    "The event-loop that the event-loop condition is about.")
   
-  (event-loop-handler-dependency-cycle-error
+  ((event-loop-handler-dependency-cycle-error type)
    "An error that is signalled whenever a dependency cycle is detected within the handlers.
 
 See EVENT-LOOP-CONDITION
@@ -411,7 +411,7 @@ See EVENT-LOOP-CONDITION-HANDLER")
   (event-loop-condition-handler
    "The handler that the event-loop condition is about.")
   
-  (handler-condition
+  ((handler-condition type)
    "Condition base class for conditions related to handlers.
 
 See HANDLER-CONDITION-HANDLER")
@@ -419,7 +419,7 @@ See HANDLER-CONDITION-HANDLER")
   (handler-condition-handler
    "The handler that the handler condition is about.")
   
-  (handler-thread-stop-failed-warning
+  ((handler-thread-stop-failed-warning type)
    "A warning that is signalled whenever a thread of a handler fails to stop.
 
 See HANDLER-CONDITION
@@ -430,7 +430,7 @@ See HANDLER-CONDITION-THREAD")
 
 ;; handler.lisp
 (setdocs
-  (handler
+  ((handler type)
    "Base class for all handlers to which events can be delivered.
 
 See EVENT-DELIVERY
@@ -468,7 +468,7 @@ See FIND-CLASS-SLOT-FUZZY")
   (after
    "A list of handler names or categories after which this handler should be called.")
   
-  (parallel-handler
+  ((parallel-handler type)
    "A handler that starts a new thread to handle each event that it receives through ISSUE.
 
 Note that if you use this handler you must care for resource locking
@@ -486,7 +486,7 @@ See LOCK")
 
 See THREADS")
   
-  (queued-handler
+  ((queued-handler type)
    "A handler that uses an event queue and separate thread to process them.
 
 This is the default handler class. Since there is only a single thread per
@@ -501,7 +501,7 @@ issued.
 See HANDLER
 See QUEUED-EVENT-DELIVERY")
   
-  (locally-blocking-handler
+  ((locally-blocking-handler type)
    "A handler that handles the event in the issuing thread and thus blocks it.
 
 This is useful for handlers that need to modify the event they receive,
@@ -510,7 +510,7 @@ handlers can be called with the event.
 
 See HANDLER")
   
-  (globally-blocking-handler
+  ((globally-blocking-handler type)
    "A handler that globally blocks all issuing threads until it is done.
 
 The difference to LOCALLY-BLOCKING-HANDLER is only apparent in the case
@@ -522,7 +522,7 @@ See HANDLER
 See QUEUED-EVENT-DELIVERY
 See BLOCKING-EVENT-TASK")
   
-  (blocking-event-task
+  ((blocking-event-task type)
    "An event-task that blocks the issuing thread until it is done being processed in the foreign thread.
 
 See EVENT-TASK
