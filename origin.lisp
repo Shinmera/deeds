@@ -13,4 +13,4 @@
      ,@body))
 
 (defmacro here ()
-  (or *origin* *compile-file-pathname* *load-pathname* *package*))
+  (or *compile-file-pathname* *load-pathname* *package*))
