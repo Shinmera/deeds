@@ -55,11 +55,14 @@
                 finally (setf body list))
           body))
 
-(defun copy-hash-table (old)
-  (let ((new (make-hash-table :test (hash-table-test old)
-                              :size (hash-table-size old)
-                              :rehash-size (hash-table-rehash-size old)
-                              :rehash-threshold (hash-table-rehash-threshold old))))
+(defun copy-hash-table (old &key (test (hash-table-test old))
+                                 (size (hash-table-size old))
+                                 (rehash-size (hash-table-rehash-size old))
+                                 (rehash-threshold (hash-table-rehash-threshold old)))
+  (let ((new (make-hash-table :test test
+                              :size size
+                              :rehash-size rehash-size
+                              :rehash-threshold rehash-threshold)))
     (maphash (lambda (k v) (setf (gethash k new) v)) old)
     new))
 
@@ -68,10 +71,10 @@
     (format NIL "~4,'0d.~2,'0d.~2,'0d ~2,'0d:~2,'0d:~2,'0d" yy mm dd h m s)))
 
 (defun removef (list &rest remove-properties)
-  (let ((copy (copy-list list)))
-    (dolist (prop remove-properties)
-      (remf copy prop))
-    copy))
+  (loop for (key val) on list by #'cddr
+        for found = (find key remove-properties)
+        unless found collect key
+        unless found collect val))
 
 (defun compile-lambda (lambda)
   (handler-bind ((style-warning #'muffle-warning)
