@@ -224,6 +224,12 @@ See EVENT-SLOT")
   
   ((event-effective-slot-definition type)
    "A standard-effective-slot-definition for an event-slot.")
+
+  (check-event-slots
+   "Checks the given slot-forms to see if any immutable slots have writers.
+
+If such a slot is found, a warning of type IMMUTABLE-EVENT-SLOT-HAS-WRITER
+is signalled.")
   
   ((event type)
    "Base class for all events.
@@ -587,12 +593,73 @@ See HERE")
 
 ;; toolkit.lisp
 (setdocs
+  (class-all-direct-slots
+   "Finds all direct-slot instances that this class will inherit.
+
+More explicitly, it traverses the superclass tree and gathers all direct-slots it can find.")
+
+  (find-slot-accessor
+   "Attempts to find an accessor for the given slot.
+
+This works by looping through all writers and seeing if there's a corresponding reader for it.
+In the case of a (setf foo) writer it looks for a foo reader.")
+
+  (find-class-slot-fuzzy
+   "Attempts to find a slot on CLASS that matches SLOT-ISH
+
+A slot is found if SLOT-ISH matches by either slot-name or one
+of the readers of the slot through either an EQL or STRING= comparison.
+If no appropriate slot can be found, NIL is returned instead.
+
+See CLASS-ALL-DIRECT-SLOTS")
+
+  (build-fuzzy-slot-accessor
+   "Constructs an appropriate accessor form to read/write the given slot-ish.
+
+FIND-CLASS-SLOT-FUZZY is used to find an appropriate slot.
+If no appropriate slot can be found, an error is signalled.
+
+FIND-SLOT-ACCESSOR is used to detect if an accessor can be
+used. If no accessor is found, a SLOT-VALUE form is emitted
+instead.
+
+Returns the form and the slot instance.
+
+See FIND-CLASS-SLOT-FUZZY
+See FIND-SLOT-ACCESSOR")
+  
   ((with-fuzzy-slot-bindings)
    "Establishes a binding context similar to WITH-SLOTS and WITH-ACCESSORS but using the most appropriate way to access a slot, and a fuzzy manner of identifying slots.
 
-A slot is found if the designator matches by either slot-name or one
-of the readers of the slot, through either an EQL or STRING= comparison.
-If no appropriate slot can be found, an error is signalled.
+Each VAR can either be a list of NAME SLOT-ISH, or simply the SLOT-ISH which will be used as the name as well.
 
-If an identified slot is reachable through an accessor, then the
-accessor is used. Otherwise SLOT-VALUE is used instead."))
+You must pass the class explicitly since we have to be able to analyse the slots of the class during compile time.
+
+See BUILD-FUZZY-SLOT-ACCESSOR")
+
+  (parse-into-kargs-and-body
+   "Takes a list of forms and parses them into a list of kargs and body.
+
+More specifically, it parses the following structure:
+
+KARGS-AND-BODY ::= KARG* form*
+KARG           ::= keyword form
+
+This kind of structure is found on f.e. RESTART-CASE")
+
+  (copy-hash-table
+   "Copies the hash table.
+
+This does not respect potential implementation-dependent hash-table properties.")
+
+  (format-time
+   "Formats UNIVERSAL-TIME into a datestring of the following format:
+YYYY.MM.DD hh:mm:ss")
+
+  (removef
+   "Constructs a copy of LIST, removing the plist properties REMOVE-PROPERTIES.")
+
+  (compile-lambda
+   "Compiles the given LAMBDA form into a function object.
+
+Attempts to muffle all warnings and notes during compilation."))
