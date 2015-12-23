@@ -116,14 +116,14 @@
    :payload (error "PAYLOAD required.")))
 
 (define-event sequence-event ()
-  ((index :initarg :index :reader index))
+  ((index :initarg :index :reader index)
+   (max-index :initarg :max-index :reader max-index))
   (:default-initargs
-   :index (error "INDEX required.")))
+   :index (error "INDEX required.")
+   :max-index NIL))
 
 (define-event chunked-payload-event (payload-event sequence-event)
-  ((max-index :initarg :max-index :reader max-index))
-  (:default-initargs
-   :max-index (error "MAX-INDEX required.")))
+  ())
 
 (define-event identified-event ()
   ((identifier :initarg :identifier :reader identifier)))
@@ -131,8 +131,7 @@
 (defmethod initialize-instance :after ((identified-event identified-event) &key)
   (unless (slot-boundp identified-event 'identifier)
     (setf (slot-value identified-event 'identifier)
-          #+sbcl (sb-kernel:get-lisp-obj-address identified-event)
-          #-sbcl (sxhash identified-event))))
+          idnetified-event)))
 
 (define-event stream-event (identified-event)
   ())
