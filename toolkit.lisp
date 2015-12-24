@@ -9,8 +9,10 @@
 (defun class-all-direct-slots (class)
   (let ((slots ()))
     (labels ((traverse (class)
-               (dolist (slot (c2mop:class-direct-slots class))
-                 (push slot slots)
+               (when (typep class 'standard-class)
+                 (c2mop:finalize-inheritance class)
+                 (dolist (slot (c2mop:class-direct-slots class))
+                   (push slot slots))
                  (mapc #'traverse (c2mop:class-direct-superclasses class)))))
       (traverse (etypecase class
                   (standard-class class)
