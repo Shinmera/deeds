@@ -11,17 +11,24 @@
    (event-type :initarg :event-type :reader event-type)
    (filter :initarg :filter :reader filter)
    (before :initarg :before :reader before)
-   (after :initarg :after :reader after))
+   (after :initarg :after :reader after)
+   (handle-cancelled :initarg :handle-cancelled :reader handle-cancelled))
   (:default-initargs
    :name NIL
    :event-type 'event
    :filter NIL
    :before ()
-   :after ()))
+   :after ()
+   :handle-cancelled NIL))
 
 (defmethod print-object ((handler handler) stream)
   (print-unreadable-object (handler stream :type T :identity T)
     (format stream "~s ~s" :name (name handler))))
+
+(defmethod handle :around ((event event) (handler handler))
+  (when (or (not (cancelled event))
+            (handle-cancelled handler))
+    (call-next-method)))
 
 (defclass parallel-handler (handler)
   ((threads :initform () :accessor threads)

@@ -209,8 +209,7 @@
            ,@(loop for filter in filters
                    for handler in handlers
                    collect `(when ,filter
-                              (issue ev ,handler)
-                              (when (cancelled ev) (return)))))))))
+                              (issue ev ,handler))))))))
 
 (defmethod handle :around ((event event) (event-loop event-loop))
   (bt:with-recursive-lock-held ((event-loop-lock event-loop))

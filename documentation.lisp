@@ -267,10 +267,11 @@ if it does not already appear somewhere as a transitive superclass.")
    "Cancels the event.
 
 An event can be cancelled multiple times though the effect does not change.
-Once an event has been cancelled it must not be handled by any further
-handlers.
+Once an event has been cancelled it can only be handled by handlers that
+have HANDLE-CANCELLED set to a non-NIL value.
 
-See CANCELLED")
+See CANCELLED
+See HANDLE-CANCELLED")
   
   ((message-event type)
    "A simple event merely used to deliver message strings.
@@ -444,7 +445,8 @@ See NAME
 See EVENT-TYPE
 See FILTER
 See BEFORE
-See AFTER")
+See AFTER
+See HANDLE-CANCELLED")
   
   (name
    "Returns a symbol describing the name of the object.")
@@ -473,6 +475,9 @@ See FIND-CLASS-SLOT-FUZZY")
   
   (after
    "A list of handler names or categories after which this handler should be called.")
+
+  (handle-cancelled
+   "Accessor to whether the handler will handle events even if they are marked as being cancelled.")
   
   ((parallel-handler type)
    "A handler that starts a new thread to handle each event that it receives through ISSUE.
