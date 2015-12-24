@@ -79,7 +79,7 @@
 
 (defmethod print-object ((event event) stream)
   (print-unreadable-object (event stream :type T :identity T)
-    (format stream "~@[~a ~]~s ~a" (when (issue-time event) (format-time (issue-time event))) :origin (origin event))))
+    (format stream "~@[~a ~]~s ~a ~@[~a~]" (when (issue-time event) (format-time (issue-time event))) :origin (origin event) (and (cancelled event) :cancelled))))
 
 (defmacro define-event (name direct-superclasses direct-slots &rest options)
   (when (loop for super in direct-superclasses
