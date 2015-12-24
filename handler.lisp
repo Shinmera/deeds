@@ -21,7 +21,7 @@
 
 (defmethod print-object ((handler handler) stream)
   (print-unreadable-object (handler stream :type T :identity T)
-    (format stream "~:[~;~s ~s~] ~s" (name handler) :name (name handler) (simple-tasks:status handler))))
+    (format stream "~s ~s" :name (name handler))))
 
 (defclass parallel-handler (handler)
   ((threads :initform () :accessor threads)
