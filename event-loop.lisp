@@ -18,7 +18,7 @@
 (defclass event-loop (queued-event-delivery)
   ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
    (sorted-handlers :initform () :accessor sorted-handlers)
-   (lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
+   (event-loop-lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
 
 (defmethod handler ((name symbol) (event-loop event-loop))
   (gethash name (handlers event-loop)))
