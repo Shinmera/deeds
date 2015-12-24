@@ -201,14 +201,16 @@
   (multiple-value-bind (cache inits filters) (extract-tests handlers)
     `(lambda (ev)
        (declare (optimize speed))
-       (let ,cache
-         (declare (dynamic-extent ,@(loop for var in cache
-                                          collect (if (listp var) (car var) var))))
-         ,@inits
-         ,@(loop for filter in filters
-                 for handler in handlers
-                 collect `(when ,filter
-                            (issue ev ,handler)))))))
+       (block NIL
+         (let ,cache
+           (declare (dynamic-extent ,@(loop for var in cache
+                                            collect (if (listp var) (car var) var))))
+           ,@inits
+           ,@(loop for filter in filters
+                   for handler in handlers
+                   collect `(when ,filter
+                              (issue ev ,handler)
+                              (when (cancelled ev) (return)))))))))
 
 (defmethod handle :around ((event event) (event-loop event-loop))
   (bt:with-recursive-lock-held ((event-loop-lock event-loop))
