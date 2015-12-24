@@ -25,23 +25,23 @@
 
 (defclass parallel-handler (handler)
   ((threads :initform () :accessor threads)
-   (lock :initform (bt:make-recursive-lock "parallel-handler lock") :accessor lock)))
+   (handler-lock :initform (bt:make-recursive-lock "parallel-handler lock") :accessor handler-lock)))
 
 (defmethod issue ((event event) (parallel-handler parallel-handler))
-  (bt:with-lock-held ((lock parallel-handler))
+  (bt:with-lock-held ((handler-lock parallel-handler))
     (let (thread)
       (setf thread (bt:make-thread (lambda ()
                                      (unwind-protect
                                           (with-simple-restart (abort "Stop the handler thread.")
                                             (handle event parallel-handler))
-                                       (bt:with-lock-held ((lock parallel-handler))
+                                       (bt:with-lock-held ((handler-lock parallel-handler))
                                          (setf (threads parallel-handler)
                                                (remove thread (threads parallel-handler))))))
                                    :name (format NIL "~a thread" parallel-handler)))
       (push thread (threads parallel-handler)))))
 
 (defmethod stop ((parallel-handler parallel-handler))
-  (loop for thread = (bt:with-lock-held ((lock parallel-handler))
+  (loop for thread = (bt:with-lock-held ((handler-lock parallel-handler))
                        (pop (threads parallel-handler)))
         while thread
         do (bt:interrupt-thread thread (lambda () (abort)))

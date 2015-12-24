@@ -31,7 +31,7 @@
    #:event-loop
    #:handlers
    #:sorted-handlers
-   #:lock
+   #:event-loop-lock
    #:*standard-event-loop*
    #:do-issue)
   ;; event.lisp
@@ -92,7 +92,7 @@
    #:after
    #:parallel-handler
    #:threads
-   #:lock
+   #:handler-lock
    #:queued-handler
    #:locally-blocking-handler
    #:globally-blocking-handler

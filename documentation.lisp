@@ -155,13 +155,13 @@ handlers very efficiently.
 See QUEUED-EVENT-DELIVERY
 See HANDLERS
 See SORTED-HANDLERS
-See LOCK")
+See EVENT-LOOP-LOCK")
   
   (handlers
    "An EQL hash-table of the registered handlers on the event-loop.
 Be careful when modifying this table, as it is not synchronised.
 
-See LOCK")
+See EVENT-LOOP-LOCK")
   
   (sorted-handlers
    "A list of the registered handlers in their properly sorted order.
@@ -171,7 +171,7 @@ This function might become temporarily out of sync with HANDLERS.
 See SORT-HANDLERS
 See ENSURE-HANDLERS-SORTED")
   
-  (lock
+  (event-loop-lock
    "A lock used to synchronise access to the event-loop slots.
 
 See HANDLERS
@@ -482,12 +482,12 @@ yourself. This can potentially be very tricky and inefficient.
 
 See HANDLER
 See THREADS
-See LOCK")
+See HANDLER-LOCK")
   
   (threads
    "The threads of the parallel-handler.")
   
-  (lock
+  (handler-lock
    "Handler lock to lock the access to the internal threads list.
 
 See THREADS")
