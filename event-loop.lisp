@@ -53,6 +53,11 @@
     (recompile-event-loop event-loop))
   handler)
 
+(defmethod deregister-handler ((name symbol) (event-loop event-loop))
+  (deregister-handler (or (handler name event-loop)
+                          (error "No such handler ~s." name))
+                      event-loop))
+
 (defmethod ensure-handlers-sorted ((event-loop event-loop))
   (setf (sorted-handlers event-loop)
         (sort-handlers (handlers event-loop) event-loop)))
