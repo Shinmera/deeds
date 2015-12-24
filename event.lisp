@@ -131,7 +131,7 @@
 (defmethod initialize-instance :after ((identified-event identified-event) &key)
   (unless (slot-boundp identified-event 'identifier)
     (setf (slot-value identified-event 'identifier)
-          idnetified-event)))
+          identified-event)))
 
 (define-event stream-event (identified-event)
   ())
