@@ -96,7 +96,6 @@
    #:queued-handler
    #:locally-blocking-handler
    #:globally-blocking-handler
-   #:blocking-event-task
    #:define-handler
    #:with-one-time-handler)
   ;; origin.lisp

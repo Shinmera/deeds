@@ -64,16 +64,12 @@
 (defclass locally-blocking-handler (handler)
   ())
 
-(defclass globally-blocking-handler (handler queued-event-delivery)
-  ())
+(defclass globally-blocking-handler (handler)
+  ((handler-lock :initform (bt:make-recursive-lock "globally-blocking-handler lock") :accessor handler-lock)))
 
-(defmethod issue ((event event) (globally-blocking-handler globally-blocking-handler))
-  (simple-tasks:schedule-task
-   (make-instance 'blocking-event-task :event event) globally-blocking-handler)
-  event)
-
-(defclass blocking-event-task (event-task simple-tasks:blocking-task)
-  ())
+(defmethod handle ((event event) (globally-blocking-handler globally-blocking-handler))
+  (bt:with-recursive-lock-held ((handler-lock globally-blocking-handler))
+    (call-next-method)))
 
 (defmacro define-handler ((name event-type) args &body options-and-body)
   (destructuring-bind (ev &rest args) args

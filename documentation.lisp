@@ -530,14 +530,7 @@ in which case both are blocked until their individual events are done
 being processed.
 
 See HANDLER
-See QUEUED-EVENT-DELIVERY
-See BLOCKING-EVENT-TASK")
-  
-  ((blocking-event-task type)
-   "An event-task that blocks the issuing thread until it is done being processed in the foreign thread.
-
-See EVENT-TASK
-See SIMPLE-TASKS:BLOCKING-TASK")
+See HANDLER-LOCK")
   
   ((define-handler)
    "Define and register a new event handler on a particular event loop.
