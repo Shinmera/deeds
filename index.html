@@ -1,0 +1,1528 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="utf-8"/>
+    <title>DEEDS</title>
+    <style type="text/css">
+      html{font-family: serif;}
+      code a{text-decoration: none;}
+      h1{display: inline-block; margin-bottom: 0;}
+      code{font-family: monospace;}
+      h4{display: inline-block; margin: 0; padding: 0;}
+      #symbol-index ul{list-style: none;}
+      .package li{margin-bottom: 20px;}
+      .package pre{margin: 0 0 0 10px; white-space: pre-wrap;}
+      .package .nicknames{font-weight: normal;}
+      table{margin: 20px;}
+      td{padding-bottom: 10px;}
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>deeds</h1>
+      <span class="version">3.0.0</span>
+      <p class="description">Deeds Extensible Event Delivery System</p>
+    </header>
+    <div id="content">
+      <article>
+        
+          <span><h2>About Deeds</h2>
+
+<p>Deeds is an Extensible Event Delivery System. It allows for efficient event delivery to multiple handlers with a complex event filtering system.</p>
+
+<p>There are three main components to this system: events, loops, and handlers. Events are certain kinds of messages or data payloads that are to be sent out and processed by other parts in the system. Loops handle the distribution of the events, and handlers then finally do the processing of an event.</p>
+
+<p>There can be multiple independent loops in any application and handlers can be registered on any number of loops simultaneously. However, each event should only be sent out once and only on one loop. If it is necessary to issue an event multiple times or onto multiple loops, it needs to be copied.</p>
+
+<p>The distribution to handlers from the loop follows a strict ordering scheme that is specified on the handlers. Each handler can dictate a list of <code><a href="#DEEDS:BEFORE">before</a></code> and <code><a href="#DEEDS:AFTER">after</a></code> elements that precisely lay out their position in the issuing sequence. Additionally, handlers can specify a filter and event class that limit the type and kind of events that it will receive.</p>
+
+<p>The loop compiles an efficient, tailored function to issue events to handlers and perform the filtering. This means that even with a significant amount of handlers, issuing an event is still going to be very fast.</p>
+
+<p>Finally there are different types of handlers to give the user more control over the context in which the event handling happens and whether the loop should be blocked during the handler's execution.</p>
+
+<h2>How To</h2>
+
+<p>Load Deeds through Quicklisp or ASDF:</p>
+
+<pre><code>(ql:quickload :deeds)
+</code></pre>
+
+<p>By default the system will set up and launch a standard event loop on <code><a href="#DEEDS:*STANDARD-EVENT-LOOP*">*standard-event-loop*</a></code>. You can then add handlers by using <code><a href="#DEEDS:DEFINE-HANDLER">define-handler</a></code>:</p>
+
+<pre><code>(<a href="#DEEDS:DEFINE-HANDLER">deeds:define-handler</a> (info-handler deeds:info-event) (<a href="#DEEDS:EVENT">event</a> message)
+  (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;INFO: ~a~%&quot; message))
+
+(<a href="#DEEDS:DEFINE-HANDLER">deeds:define-handler</a> (smiling-handler deeds:info-event) (<a href="#DEEDS:EVENT">event</a> message)
+  :filter (<a href="http://l1sp.org/cl/search">search</a> &quot;:)&quot; message)
+  (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;YAY: ~a~%&quot; message))
+</code></pre>
+
+<p>Now let's issue some events and see what happens:</p>
+
+<pre><code>(<a href="#DEEDS:DO-ISSUE">deeds:do-issue</a> deeds:info-event :message &quot;Hello!&quot;)
+(<a href="#DEEDS:DO-ISSUE">deeds:do-issue</a> deeds:info-event :message &quot;Hey there :)&quot;)
+(<a href="#DEEDS:DO-ISSUE">deeds:do-issue</a> deeds:warning-event :message &quot;Help! It's burning!&quot;)
+</code></pre>
+
+<p>By default events have fields for the issue-time, the origin, and whether they've been cancelled. So let's play around with that.</p>
+
+<pre><code>(<a href="#DEEDS:DEFINE-HANDLER">deeds:define-handler</a> (simple-handler deeds:event) (<a href="#DEEDS:EVENT">event</a>)
+  (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;Found event: ~a~%&quot; event))
+
+(<a href="#DEEDS:DEFINE-HANDLER">deeds:define-handler</a> (pre-handler deeds:event) (<a href="#DEEDS:EVENT">event</a>)
+  :before '(:main)
+  :class 'deeds:locally-blocking-handler
+  (<a href="#DEEDS:CANCEL">deeds:cancel</a> event)
+  (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;Cancelling!~%&quot;))
+</code></pre>
+
+<p>The first handler simply prints everything it finds. The second one is special in two ways: first it orders itself before every other normal handler by ordering itself before the main category. Second, it uses a different handler class. The default class is the <code><a href="#DEEDS:QUEUED-HANDLER">queued-handler</a></code> which uses a singular queue in a different thread to process events. This handler on the other hand will not use any threads and instead run directly in the event loop, thus locally blocking it until the handler is done. This allows us to make sure that the event gets cancelled before it reaches anything else:</p>
+
+<pre><code>(<a href="#DEEDS:DO-ISSUE">deeds:do-issue</a> deeds:event)
+</code></pre>
+
+<p>As you can see, only the pre-handler is called. If you want to try it out, remove the <code><a href="#DEEDS:CANCEL">cancel</a></code> call and recompile the pre-handler. Then the event should reach both handlers again. Alternatively you can add the <code>:handle-cancelled T</code> option to the simple-handler to override the default behaviour.</p>
+
+<h2>Internals</h2>
+
+<p>This section documents how the particular standard implementation of the various components works. Some to all of this can be changed by subclassing the existing implementations and overriding the behaviour to suit your needs.</p>
+
+<h3>Events</h3>
+
+<p>In order to allow for any form of optimisation on the event filtering in the event loop, we need to enforce restrictions on what can happen to an event. The most straightforward restriction is to require immutability of the event slots. However, in some cases it is very much desirable to be able to mutate the slots -- as an example if you'd like to filter the text in a message event. As such, the most appropriate solution is to allow manual overriding of the immutability on a per-slot basis. To achieve this, a custom metaclass <code><a href="#DEEDS:EVENT-CLASS">event-class</a></code> along with custom slot classes <code><a href="#DEEDS:EVENT-DIRECT-SLOT-DEFINITION">event-direct-slot-definition</a></code> <code><a href="#DEEDS:EVENT-EFFECTIVE-SLOT-DEFINITION">event-effective-slot-definition</a></code> have been created that tend to this behaviour.</p>
+
+<p>The slot classes have an additional field accessible through <code><a href="#DEEDS:EVENT-SLOT-MUTABLE">event-slot-mutable</a></code> and specifiable through <code>:mutable</code>, which dictates whether the slot is mutable or not. If it is immutable but a writer has been specified on the slot anyway, an <code><a href="#DEEDS:IMMUTABLE-EVENT-SLOT-HAS-WRITER">immutable-event-slot-has-writer</a></code> warning is signalled upon class initialisation to warn the user of potentially dangerous behaviour. Similarly, if an attempt is made to actually perform a modification on an immutable slot during any time but the <code><a href="#DEEDS:EVENT">event</a></code>'s <code><a href="http://l1sp.org/cl/initialize-instance">initialize-instance</a></code> time, a continuable error of type <code><a href="#DEEDS:IMMUTABLE-EVENT-SLOT-MODIFIED">immutable-event-slot-modified</a></code> is signalled. This way it is still possible to perform modifications on immutable slots if absolutely necessary, while the accidental case is prevented.</p>
+
+<p>In order to make defining events easier, a simple wrapper around <code><a href="http://l1sp.org/cl/defclass">defclass</a></code> is provided called <code><a href="#DEEDS:DEFINE-EVENT">define-event</a></code>. A bunch of standard events are supplied to make the most common event actions easier: <code><a href="#DEEDS:MESSAGE-EVENT">message-event</a></code>, <code><a href="#DEEDS:INFO-EVENT">info-event</a></code>, <code><a href="#DEEDS:WARNING-EVENT">warning-event</a></code>, <code><a href="#DEEDS:ERROR-EVENT">error-event</a></code>, <code><a href="#DEEDS:PAYLOAD-EVENT">payload-event</a></code>, <code><a href="#DEEDS:SEQUENCE-EVENT">sequence-event</a></code>, <code><a href="#DEEDS:CHUNKED-PAYLOAD-EVENT">chunked-payload-event</a></code>, <code><a href="#DEEDS:IDENTIFIED-EVENT">identified-event</a></code>, <code><a href="#DEEDS:STREAM-EVENT">stream-event</a></code>, <code><a href="#DEEDS:STREAM-BEGIN-EVENT">stream-begin-event</a></code>, <code><a href="#DEEDS:STREAM-PAYLOAD-EVENT">stream-payload-event</a></code>, and <code><a href="#DEEDS:STREAM-END-EVENT">stream-end-event</a></code>.</p>
+
+<h3>Handlers</h3>
+
+<p>The primary distinguishing feature of a handler is the question of how it actually invokes the delivery function when an event is <code><a href="#DEEDS:ISSUE">issue</a></code>d to the handler from a loop. The most primitive behaviour is to simply call the function directly. This is implemented by the <code><a href="#DEEDS:LOCALLY-BLOCKING-HANDLER">locally-blocking-handler</a></code>, which in effect will block the issuing loop, but may still be invoked in parallel if multiple loops are involved. The next idea is to spawn a new thread for each event that is issued. This behaviour is implemented by the <code><a href="#DEEDS:PARALLEL-HANDLER">parallel-handler</a></code>. However, spawning lots of threads will quickly lead to situations where the threads interleave, and as such it is important that the delivery function takes care to lock and synchronise, which can be taxing on the user. Thus the next idea is to queue events and handle them in a separate thread. This avoids most contention and thrashing issues while still getting the benefit of unblocking the loop. This behaviour is implemented by the <code><a href="#DEEDS:QUEUED-HANDLER">queued-handler</a></code>. Finally there is a variant of the <code><a href="#DEEDS:LOCALLY-BLOCKING-HANDLER">locally-blocking-handler</a></code> that blocks all loops that have issued an event until their respective event is done. This is implemented by the <code><a href="#DEEDS:GLOBALLY-BLOCKING-HANDLER">globally-blocking-handler</a></code>.</p>
+
+<p>Potentially much more complicated schemes that act differently depending on the issuing loop or the event to be processed could be conceived, but such things are too tied to the actual use-case at hand, and as such are left up to the user to implement. Writing such a handler should not prove very difficult, it is merely a matter of subclassing <code><a href="#DEEDS:HANDLER">handler</a></code> and implementing the appropriate behaviour in <code><a href="#DEEDS:ISSUE">issue</a></code> and <code><a href="#DEEDS:HANDLE">handle</a></code>. The handler can then be used by supplying it to <code><a href="#DEEDS:DEFINE-HANDLER">define-handler</a></code> by the <code>:class</code> option.</p>
+
+<h3>Event Loops</h3>
+
+<p>Finally the most complicated piece of machinery is the event loop itself. In order to understand the workings, first the lifecycle of an event must be analysed. From a user's perspective this would go as follows: an event instance is created and issued onto a loop. It is then handled by the appropriate handlers in the order as specified by their dependency restrictions. The most primitive way to handle this would be to build a dependency graph of the handlers and traverse them in their topological order, only invoking them when their filter applies to the event.</p>
+
+<p>However, this can become severely limiting when the amount of events and handlers becomes significant. The first optimisation is to separate the loop out into a dedicated thread with an event queue that buffers events. This unblocks the issuing thread and ensures that nothing is held up waiting. The next obvious improvement is to cache the dependency graph walking by generating the proper order of handlers upon handler registration. Finally we can realise that the event handler filters will share a lot of common tests which can be potentially rather costly if repeated too often. It would be good if those could be cached and bundled together to avoid unnecessary retesting.</p>
+
+<p>The default implementation <code><a href="#DEEDS:EVENT-LOOP">event-loop</a></code> in Deeds solves these in the following manner: the unblocking of the issuing thread is achieved through <a href="http://shinmera.github.io/simple-tasks/">simple-tasks</a>' <code>queued-runner</code>, which already provides the exact mechanism we need. The dependency graph is calculated through <a href="https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm">Tarjan's algorithm</a> and cached as a list. It is recalculated every time a new handler is registered by <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>. Finally, to make the event loop efficient it is treated as a <code><a href="http://l1sp.org/cl/compile">compile</a></code>d function that is built dynamically whenever necessary through <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>. The mechanism of this is rather complicated.</p>
+
+<p>First, in order to optimise and cache tests the loop is separated into three &quot;phases&quot;. The first phase establishes lexical bindings for all tests and performs the type tests on the event object. The second phase performs the actual tests on the event as extracted from the handlers' filters if they are applicable under the current event class. Finally, the handlers are called in their <code><a href="#DEEDS:SORTED-HANDLERS">sorted-handlers</a></code> order if their filter passes. The bulk of this behaviour is done by <code>extract-tests</code> which uses <code>filter-tests</code> to extract all tests from a filter. Tests are simply compared through <code><a href="http://l1sp.org/cl/equal">equal</a></code> to see if they are the &quot;same&quot;. This is a very conservative comparison as several types of tests would return the same result even if their forms are not <code><a href="http://l1sp.org/cl/equal">equal</a></code> such as for commutative tests. <code>compile-test</code> is used to replace the variable references within a test with event slot accessors as discovered by <code>build-fuzzy-slot-accessor</code>. Finally <code>replace-tests</code> is used to replace the tests in a filter with the corresponding variables that are outputted to cache the tests. This is then all packed together into a <code><a href="http://l1sp.org/cl/lambda">lambda</a></code> form that can then be <code><a href="http://l1sp.org/cl/compile">compile</a></code>d into a function object.</p>
+
+<p>The optimisations done here are not optimal however. For example, no effort is done to group <code><a href="http://l1sp.org/cl/when">when</a></code> forms together in the outputted form when possible. This could save on branching and repeat tests in the resulting form. Similarly, no effort is done to recognise whether the required type tests of the handlers are actually strictly necessary or could be weakened to allow further grouping and conflating of tests. There are potentially many more possible improvements that could be done to make the event loop function even tighter, however the algorithms necessary to achieve this would quickly explode in complexity. For now we settle on this rather primitive approach as being sufficient.</p>
+
+<p>However, you can of course extend the system on your own by subclassing <code><a href="#DEEDS:EVENT-LOOP">event-loop</a></code> and implementing the proper methods such as <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>, <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>, <code><a href="#DEEDS:REGISTER-HANDLER">register-handler</a></code>, and <code><a href="#DEEDS:DEREGISTER-HANDLER">deregister-handler</a></code>.</p>
+</span>
+        
+      </article>
+      <article>
+        
+          <h2>Copyright</h2>
+          <span>deeds</span> is licensed under the <span><a href="https://tldrlegal.com/search?q=Artistic">Artistic</a></span> license.
+          
+            © <span>Nicolas Hafner &lt;shinmera@tymoon.eu&gt;</span>
+            .
+          
+          This library can be obtained on <a href="https://github.com/Shinmera/deeds">https://github.com/Shinmera/deeds</a>.
+        
+      </article>
+      
+        <article id="symbol-index">
+          <h2>Package Index</h2>
+          <ul><li class="package">
+              <h3>
+                <a name="DEEDS" href="#DEEDS">DEEDS</a>
+                <span class="nicknames">(ORG.SHIRAKUMO.DEEDS)</span>
+              </h3>
+              <ul><li>
+                  <a name="DEEDS:*ORIGIN*"/>
+                  <article>
+                    <header class="special">
+                      <span class="type">special</span>
+                      <code>
+                        <h4><a href="#DEEDS:*ORIGIN*" class="name">*ORIGIN*</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The variable designating the current origin.
+
+The value of this might not be useful or significant for anything,
+but if at all possible it should denote some kind of identifier for
+the place where an event was signalled from.
+
+See WITH-ORIGIN</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:*STANDARD-EVENT-LOOP*"/>
+                  <article>
+                    <header class="special">
+                      <span class="type">special</span>
+                      <code>
+                        <h4><a href="#DEEDS:*STANDARD-EVENT-LOOP*" class="name">*STANDARD-EVENT-LOOP*</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The default global instance of an event-loop.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CHUNKED-PAYLOAD-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:CHUNKED-PAYLOAD-EVENT" class="name">CHUNKED-PAYLOAD-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A payload delivery event for which the payload has been cut up into chunks.
+
+See PAYLOAD-EVENT
+See SEQUENCE-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:ERROR-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:ERROR-EVENT" class="name">ERROR-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Delivers an error message.
+
+See MESSAGE-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT" class="name">EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Base class for all events.
+
+Anything that would like to be processed by an event-delivery must
+inherit from this class.
+
+See ISSUE-TIME
+See ORIGIN
+See CANCELLED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CLASS"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CLASS" class="name">EVENT-CLASS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Metaclass for events.
+
+Uses the EVENT-SLOT class for slots, to allow specification of im/mutable slots.
+
+See EVENT-SLOT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-DELIVERY"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-DELIVERY" class="name">EVENT-DELIVERY</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A base class for any kind of object that can deliver events.
+
+This class must implement START, STOP, ISSUE, and HANDLE.
+
+See DELIVERY-FUNCTION</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-DIRECT-SLOT-DEFINITION"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-DIRECT-SLOT-DEFINITION" class="name">EVENT-DIRECT-SLOT-DEFINITION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A standard-direct-slot-definition for an event-slot.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-EFFECTIVE-SLOT-DEFINITION"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-EFFECTIVE-SLOT-DEFINITION" class="name">EVENT-EFFECTIVE-SLOT-DEFINITION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A standard-effective-slot-definition for an event-slot.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP" class="name">EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The base class for an event loop.
+
+Implements a standard queued event loop that respects all other
+constraints. Supports rudimentary optimisation of the event loop
+handler filter tests to speed up delivery and generates a tight
+event delivery function that should allow issuing events to
+handlers very efficiently.
+
+See QUEUED-EVENT-DELIVERY
+See HANDLERS
+See SORTED-HANDLERS
+See EVENT-LOOP-LOCK</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-SLOT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-SLOT" class="name">EVENT-SLOT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Base class for the event-slot classes.
+
+Contains one extra field (:MUTABLE) that allows specification of
+whether the slot is allowed to be mutated through a writer.
+If the user attempts to specify a writer (or accessor) on the slot
+while :MUTABLE NIL, a warning of type IMMUTABLE-EVENT-SLOT-HAS-WRITER
+is signalled. If an attempt is made to write to a slot that has been
+designated immutable, a continuable error of type IMMUTABLE-EVENT-SLOT-MODIFIED
+is signalled. 
+
+By default slots are immutable.
+
+See EVENT-SLOT-MUTABLE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-TASK"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-TASK" class="name">EVENT-TASK</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A simple container to deliver events using the simple-tasks framework.
+
+See SIMPLE-TASKS:TASK
+See EVENT-TASK-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:GLOBALLY-BLOCKING-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:GLOBALLY-BLOCKING-HANDLER" class="name">GLOBALLY-BLOCKING-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A handler that globally blocks all issuing threads until it is done.
+
+The difference to LOCALLY-BLOCKING-HANDLER is only apparent in the case
+where multiple event loops issue to this same handler at the same time,
+in which case both are blocked until their individual events are done
+being processed.
+
+See HANDLER
+See HANDLER-LOCK</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER" class="name">HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Base class for all handlers to which events can be delivered.
+
+See EVENT-DELIVERY
+See NAME
+See EVENT-TYPE
+See FILTER
+See BEFORE
+See AFTER
+See HANDLE-CANCELLED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:IDENTIFIED-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:IDENTIFIED-EVENT" class="name">IDENTIFIED-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An event that belongs to a certain identified group.
+
+The identifier defaults to the event itself.
+
+See EVENT
+See IDENTIFIER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:INFO-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:INFO-EVENT" class="name">INFO-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Delivers an informational message.
+
+See MESSAGE-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:LOCALLY-BLOCKING-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:LOCALLY-BLOCKING-HANDLER" class="name">LOCALLY-BLOCKING-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A handler that handles the event in the issuing thread and thus blocks it.
+
+This is useful for handlers that need to modify the event they receive,
+as then it is guaranteed that the modification is done before any further
+handlers can be called with the event.
+
+See HANDLER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:MESSAGE-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:MESSAGE-EVENT" class="name">MESSAGE-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A simple event merely used to deliver message strings.
+
+See EVENT
+See MESSAGE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:PARALLEL-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:PARALLEL-HANDLER" class="name">PARALLEL-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A handler that starts a new thread to handle each event that it receives through ISSUE.
+
+Note that if you use this handler you must care for resource locking
+yourself. This can potentially be very tricky and inefficient.
+
+See HANDLER
+See THREADS
+See HANDLER-LOCK</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:PAYLOAD-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:PAYLOAD-EVENT" class="name">PAYLOAD-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A simple event used to deliver some kind of data payload.
+
+See EVENT
+See PAYLOAD</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:QUEUED-EVENT-DELIVERY"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:QUEUED-EVENT-DELIVERY" class="name">QUEUED-EVENT-DELIVERY</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An event delivery that uses a queue and background thread to deliver events.
+
+See EVENT-DELIVERY</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:QUEUED-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:QUEUED-HANDLER" class="name">QUEUED-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A handler that uses an event queue and separate thread to process them.
+
+This is the default handler class. Since there is only a single thread per
+handler, resources on the handler itself should be safe to access. However,
+you still have to tend after locking of external resources on your own as
+they might be modified and accessed in any fashion.
+Also note that since this is a single, queued handler that any event that
+takes a very long time will block other events on the handler from being
+processed. It will not however block the event-loop from which the events are
+issued.
+
+See HANDLER
+See QUEUED-EVENT-DELIVERY</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:SEQUENCE-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:SEQUENCE-EVENT" class="name">SEQUENCE-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An event that is part of a sequence of events.
+
+See EVENT
+See INDEX
+See MAX-INDEX</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:STREAM-BEGIN-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:STREAM-BEGIN-EVENT" class="name">STREAM-BEGIN-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Stream event to signal the beginning of a stream.
+
+All further stream events that belong to this stream must have the
+same identifier as this. Events belonging to this stream may appear
+until a STREAM-END-EVENT has been issued belonging to this stream.
+
+See STREAM-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:STREAM-END-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:STREAM-END-EVENT" class="name">STREAM-END-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Stream event to signal the end of a stream.
+
+See STREAM-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:STREAM-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:STREAM-EVENT" class="name">STREAM-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Base event for stream events.
+
+All stream events that belong to the same stream must have the same
+identifier. Stream events are insignificant unless they are issued
+after a STREAM-BEGIN-EVENT of the same identifier and before a
+STREAM-END-EVENT of the same identifier.
+
+See IDENTIFIED-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:STREAM-PAYLOAD-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:STREAM-PAYLOAD-EVENT" class="name">STREAM-PAYLOAD-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A payload event for a particular stream.
+
+See PAYLOAD-EVENT
+See STREAM-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:WARNING-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:WARNING-EVENT" class="name">WARNING-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Delivers a warning message.
+
+See MESSAGE-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CONDITION"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CONDITION" class="name">EVENT-CONDITION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Condition base class for conditions related to events.
+
+See EVENT-CONDITION-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP-CONDITION"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP-CONDITION" class="name">EVENT-LOOP-CONDITION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Condition base class for conditions related to event-loops.
+
+See EVENT-LOOP-CONDITION-EVENT-LOOP</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR" class="name">EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An error that is signalled whenever a dependency cycle is detected within the handlers.
+
+See EVENT-LOOP-CONDITION
+See EVENT-LOOP-CONDITION-HANDLER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER-CONDITION"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER-CONDITION" class="name">HANDLER-CONDITION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Condition base class for conditions related to handlers.
+
+See HANDLER-CONDITION-HANDLER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER-THREAD-STOP-FAILED-WARNING"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER-THREAD-STOP-FAILED-WARNING" class="name">HANDLER-THREAD-STOP-FAILED-WARNING</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A warning that is signalled whenever a thread of a handler fails to stop.
+
+See HANDLER-CONDITION
+See HANDLER-CONDITION-THREAD</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:IMMUTABLE-EVENT-SLOT-HAS-WRITER"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:IMMUTABLE-EVENT-SLOT-HAS-WRITER" class="name">IMMUTABLE-EVENT-SLOT-HAS-WRITER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A warning that is signalled whenever an immutable slot is specified with a writer.
+
+See EVENT-CONDITION
+See EVENT-CONDITION-SLOT
+See EVENT-CONDITION-WRITERS</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:IMMUTABLE-EVENT-SLOT-MODIFIED"/>
+                  <article>
+                    <header class="condition">
+                      <span class="type">condition</span>
+                      <code>
+                        <h4><a href="#DEEDS:IMMUTABLE-EVENT-SLOT-MODIFIED" class="name">IMMUTABLE-EVENT-SLOT-MODIFIED</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An error that is signalled whenever an attempt is made to modify an immutable slot.
+
+See EVENT-CONDITION
+See EVENT-CONDITION-SLOT
+See EVENT-CONDITION-VALUE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CANCELLED"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:CANCELLED" class="name">CANCELLED</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accessor to whether the event has been cancelled.
+
+See CANCEL</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DELIVERY-FUNCTION"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:DELIVERY-FUNCTION" class="name">DELIVERY-FUNCTION</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The function that is used to deliver events.
+
+See HANDLE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CONDITION-EVENT"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CONDITION-EVENT" class="name">EVENT-CONDITION-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The event that the event condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CONDITION-SLOT"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CONDITION-SLOT" class="name">EVENT-CONDITION-SLOT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The slot that the event condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CONDITION-VALUE"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CONDITION-VALUE" class="name">EVENT-CONDITION-VALUE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The value that the event condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-CONDITION-WRITERS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-CONDITION-WRITERS" class="name">EVENT-CONDITION-WRITERS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The writers that the event condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP-CONDITION-EVENT-LOOP"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP-CONDITION-EVENT-LOOP" class="name">EVENT-LOOP-CONDITION-EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The event-loop that the event-loop condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP-CONDITION-HANDLER"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP-CONDITION-HANDLER" class="name">EVENT-LOOP-CONDITION-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The handler that the event-loop condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-LOOP-LOCK"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-LOOP-LOCK" class="name">EVENT-LOOP-LOCK</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A lock used to synchronise access to the event-loop slots.
+
+See HANDLERS
+See SORTED-HANDLERS
+See DELIVERY-FUNCTION</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-SLOT-MUTABLE"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-SLOT-MUTABLE" class="name">EVENT-SLOT-MUTABLE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accessor to whether the given EVENT-SLOT is mutable or not.
+
+See EVENT-SLOT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-TASK-EVENT"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-TASK-EVENT" class="name">EVENT-TASK-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The actual event to be delivered.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER" class="name">HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(HANDLER EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accesses the named handler from the event-loop, if such exists.
+
+Handlers that do not have a NAME will be named by themselves.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER-CONDITION-HANDLER"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER-CONDITION-HANDLER" class="name">HANDLER-CONDITION-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The handler that the handler condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER-CONDITION-THREAD"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER-CONDITION-THREAD" class="name">HANDLER-CONDITION-THREAD</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CONDITION)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The thread that the handler condition is about.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLER-LOCK"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLER-LOCK" class="name">HANDLER-LOCK</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Handler lock to lock the access to the internal threads list.
+
+See THREADS</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLERS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLERS" class="name">HANDLERS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An EQL hash-table of the registered handlers on the event-loop.
+Be careful when modifying this table, as it is not synchronised.
+
+See EVENT-LOOP-LOCK</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:ISSUE-TIME"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:ISSUE-TIME" class="name">ISSUE-TIME</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The universal-time at which the event has been ISSUEd to an event-delivery.
+
+See ISSUE.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:SORTED-HANDLERS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:SORTED-HANDLERS" class="name">SORTED-HANDLERS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A list of the registered handlers in their properly sorted order.
+
+This function might become temporarily out of sync with HANDLERS.
+
+See SORT-HANDLERS
+See ENSURE-HANDLERS-SORTED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:THREADS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:THREADS" class="name">THREADS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The threads of the parallel-handler.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:AFTER"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:AFTER" class="name">AFTER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A list of handler names or categories after which this handler should be called.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:BEFORE"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:BEFORE" class="name">BEFORE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A list of handler names or categories before which this handler should be called.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:BUILD-EVENT-LOOP"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:BUILD-EVENT-LOOP" class="name">BUILD-EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(HANDLERS EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Build a lambda form for the event loop delivery function.
+
+The handlers must be in the properly sorted order as returned by
+SORT-HANDLERS on the same EVENT-LOOP object as is used to call
+this function.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CANCEL"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:CANCEL" class="name">CANCEL</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Cancels the event.
+
+An event can be cancelled multiple times though the effect does not change.
+Once an event has been cancelled it can only be handled by handlers that
+have HANDLE-CANCELLED set to a non-NIL value.
+
+See CANCELLED
+See HANDLE-CANCELLED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DEREGISTER-HANDLER"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:DEREGISTER-HANDLER" class="name">DEREGISTER-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(HANDLER EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Deregister the given handler so that it no longer receives events from the event-loop.
+
+Deregistering an unregistered handler will not cause an error.
+Deregistering a handler might cause the event loop to be recompiled,
+which can be a costly operation.
+
+See RECOMPILE-EVENT-LOOP</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:ENSURE-HANDLERS-SORTED"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:ENSURE-HANDLERS-SORTED" class="name">ENSURE-HANDLERS-SORTED</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Ensures that the handlers are properly sorted on the event-loop
+
+See SORTED-HANDLERS
+See SORT-HANDLERS</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:EVENT-TYPE"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:EVENT-TYPE" class="name">EVENT-TYPE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The event-type that the handler accepts.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:FILTER"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:FILTER" class="name">FILTER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The specification of a filter to figure out which events the handler accepts.
+
+The structure of a filter is as follows:
+
+FILTER     ::= COMBINATOR | TEST
+COMBINATOR ::= (AND TEST*) | (OR TEST*) | (NOT TEST)
+TEST       ::= (function ARGUMENT*)
+ARGUMENT   ::= fuzzy-slot-symbol | atom
+
+fuzzy-slot-symbols denote the value of a slot on the event object.
+The actual slot is figured out per FIND-CLASS-SLOT-FUZZY on the
+EVENT-TYPE of the handler.
+
+See FIND-CLASS-SLOT-FUZZY</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLE"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLE" class="name">HANDLE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT EVENT-DELIVERY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Directly handle the event by sending it to the handlers.
+
+This function bypasses all threading, caching, ordering, and other
+protective or optimisation constructs of the event delivery itself
+and processes the event immediately. You should not call this function
+on your own unless for when you are implementing an event-delivery on
+your own. In that case you should call this function whenever you are
+ready to actually process an event and send it out.
+
+By default this simply calls the DELIVERY-FUNCTION of the
+event-delivery with the given event.
+
+See ISSUE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:IDENTIFIER"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:IDENTIFIER" class="name">IDENTIFIER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The unique identifier of the group the event belongs to.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:INDEX"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:INDEX" class="name">INDEX</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The position of the event within the sequence.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:ISSUE"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:ISSUE" class="name">ISSUE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT EVENT-DELIVERY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Issue an event to the delivery so that it is sent out to the handlers.
+
+The exact point in time when the issued event is handled and processed
+is not specified. However, the order in which events are handled must
+be the same as the order in which they are issued. An event should only
+ever be issued once. There is no check made to ensure this, but issuing
+an event multiple times or on multiple deliveries leads to undefined
+behaviour.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:MAX-INDEX"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:MAX-INDEX" class="name">MAX-INDEX</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The maximum index of the sequence.
+
+Might be NIL if the maximum length of the sequence is not yet known.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:MESSAGE"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:MESSAGE" class="name">MESSAGE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The message of the message-event.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:NAME"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:NAME" class="name">NAME</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Returns a symbol describing the name of the object.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:ORIGIN"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:ORIGIN" class="name">ORIGIN</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Some description of an origin from where the event was issued.
+
+See *ORIGIN*
+See WITH-ORIGIN</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:PAYLOAD"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:PAYLOAD" class="name">PAYLOAD</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">The payload of to be delivered.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:RECOMPILE-EVENT-LOOP"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:RECOMPILE-EVENT-LOOP" class="name">RECOMPILE-EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Cause the event loop to be recompiled.
+
+The event-loop's handlers must already be ready in their sorted
+order before calling this function. This operation is potentially
+very costly as it involves building a potentially very large
+lambda and successively invoking COMPILE on it. With a large number
+of registered handlers and a slow compiler, this might take up to
+the order of seconds to run.
+
+See BUILD-EVENT-LOOP
+See ENSURE-HANDLERS-SORTED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:REGISTER-HANDLER"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:REGISTER-HANDLER" class="name">REGISTER-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(HANDLER EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Register the given handler so that it may receive events from the event-loop.
+
+Registering the same handler twice will still result in it receiving
+events only once, but will not cause an error. Registering a handler
+might cause the event loop to be recompiled, which can be a costly
+operation.
+
+See RECOMPILE-EVENT-LOOP</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:SORT-HANDLERS"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:SORT-HANDLERS" class="name">SORT-HANDLERS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(HANDLERS EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Sort the given list of handlers into the proper issuing sequence.
+
+The returned list of handlers must be ordered in a way that the
+BEFORE and AFTER lists of all handlers are met. If a dependency
+cycle is detected, an error of type EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR
+must be signalled.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:START"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:START" class="name">START</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-DELIVERY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Start the event delivery and make it ready to accept and deliver events.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:STOP"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:STOP" class="name">STOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-DELIVERY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Stop the event delivery to stop it from accepting and delivering events.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DEFINE-EVENT"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:DEFINE-EVENT" class="name">DEFINE-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(NAME DIRECT-SUPERCLASSES DIRECT-SLOTS &amp;REST OPTIONS)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Shorthand convenience macro around DEFCLASS to define new event classes.
+
+Pushes the EVENT-CLASS as :METACLASS and EVENT as direct-superclass
+if it does not already appear somewhere as a transitive superclass.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DEFINE-HANDLER"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:DEFINE-HANDLER" class="name">DEFINE-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">((NAME EVENT-TYPE) ARGS &amp;BODY OPTIONS-AND-BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Define and register a new event handler on a particular event loop.
+
+Defining a new handler this way will simply construct the handler object,
+start it, and register it on the event loop. If a handler with the same
+name already exists on the event loop, this old handler is stopped and
+replaced by the new one.
+
+ARGS must be a list of at least one value, which must be a symbol that is
+bound to the event instance. The rest of the args are slots of the event,
+bound by WITH-FUZZY-SLOT-BINDINGS.
+
+The OPTIONS are passed to the make-instance call of the handler with the
+exception of :LOOP, :CLASS, :FILTER, and :SELF. :LOOP specifies the loop
+to which the event handler is registered. :CLASS specifies the name of
+the class the handler is instantiated from. :FILTER specifies the filter
+that specifies the accepted events. :SELF is a symbol bound to the handler
+instance itself within the BODY. :CLASS defaults to QUEUED-HANDLER and 
+:LOOP defaults to *STANDARD-EVENT-LOOP*.
+
+The body of the handler function is within a WITH-ORIGIN environment, set
+to the name of the handler.
+
+See HANDLER
+See REGISTER-HANDLER
+See QUEUED-HANDLER
+See *STANDARD-EVENT-LOOP*
+See FILTER
+See WITH-FUZZY-SLOT-BINDINGS
+See WITH-ORIGIN</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DO-ISSUE"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:DO-ISSUE" class="name">DO-ISSUE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-TYPE &amp;REST ARGS &amp;KEY (LOOP '*STANDARD-EVENT-LOOP*) &amp;ALLOW-OTHER-KEYS)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Shorthand macro to allow more convenient issuing of events.
+
+Supports one extra keyword argument that will not be passed along
+to the MAKE-INSTANCE call: LOOP will instead denote the event-loop
+to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*
+
+See *STANDARD-EVENT-LOOP*</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HERE"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:HERE" class="name">HERE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A macro that tries to figure out the most appropriate identifier for where this is.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:WITH-FUZZY-SLOT-BINDINGS"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:WITH-FUZZY-SLOT-BINDINGS" class="name">WITH-FUZZY-SLOT-BINDINGS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(VARS (INSTANCE CLASS) &amp;BODY BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Establishes a binding context similar to WITH-SLOTS and WITH-ACCESSORS but using the most appropriate way to access a slot, and a fuzzy manner of identifying slots.
+
+Each VAR can either be a list of NAME SLOT-ISH, or simply the SLOT-ISH which will be used as the name as well.
+
+You must pass the class explicitly since we have to be able to analyse the slots of the class during compile time.
+
+See BUILD-FUZZY-SLOT-ACCESSOR</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:WITH-ONE-TIME-HANDLER"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:WITH-ONE-TIME-HANDLER" class="name">WITH-ONE-TIME-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-TYPE ARGS &amp;BODY OPTIONS-AND-BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Constructs a handler that can only handle a single event before being deregistered again.
+
+See DEFINE-HANDLER
+See DEREGISTER-HANDLER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:WITH-ORIGIN"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:WITH-ORIGIN" class="name">WITH-ORIGIN</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">((&amp;OPTIONAL (NEW-ORIGIN '(HERE))) &amp;BODY BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Binds *ORIGIN* to a new value, which is by default figured out by HERE.
+
+See *ORIGIN*
+See HERE</pre>
+                  </article>
+                </li></ul>
+            </li></ul>
+        </article>
+      
+    </div>
+  </body>
+</html>
