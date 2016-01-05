@@ -21,6 +21,7 @@
                (:file "event-delivery")
                (:file "event-loop")
                (:file "handler")
+               (:file "command")
                (:file "documentation"))
   :depends-on (:closer-mop
                :simple-tasks
