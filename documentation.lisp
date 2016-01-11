@@ -26,6 +26,41 @@
                        `(setf (documentation ',var ',type) ,doc)))))
 
 (setdocs
+  ((command-event type)
+   "Event used for commands
+
+See DEFINE-COMMAND")
+
+  ((define-command)
+   "Define a command.
+
+This is a combinging macro that does three things:
+  . Define an event of NAME with the necessary fields from ARGS.
+  . Define a function of NAME with the given ARGS that issues
+    an instance of this newly defined event.
+  . Define a handler of NAME on the NAME event with the given
+    OPTIONS-AND-BODY.
+
+A new option is available just for this macro with the name
+:SUPERCLASSES, which allows you to specify the direct-superclasses
+to use in the event definition.
+
+The first argument in ARGS must be the name for the event as
+required by DEFINE-HANDLER. The rest are arguments to the function
+and simultaneously slots on the event class. In order to allow you
+to specify slot options, arguments have the following structure:
+
+ARGS       ::= SINGLE* [&optional DEFAULTING*] [&rest SINGLE*] [&key DEFAULTING*]
+SINGLE     ::= symbol | (symbol SLOT-ARG*)
+DEFAULTING ::= symbol | (symbol value SLOT-ARG*)
+SLOT-ARG   ::= keyword value
+
+The purpose of defining commands is to allow something akin to a
+function definition that can be treated as such for most purposes
+while still integrating it with the event system and allowing
+extension through that."))
+
+(setdocs
   (start
    "Start the event delivery and make it ready to accept and deliver events.")
   
@@ -81,7 +116,12 @@ See SIMPLE-TASKS:TASK
 See EVENT-TASK-EVENT")
   
   (event-task-event
-   "The actual event to be delivered."))
+   "The actual event to be delivered.")
+
+  ((blocking-event-task type)
+   "A simple container to deliver events using the simple-tasks framework, blocking variant.
+
+See EVENT-TASK"))
 
 ;; event-loop.lisp
 (setdocs
@@ -272,6 +312,19 @@ have HANDLE-CANCELLED set to a non-NIL value.
 
 See CANCELLED
 See HANDLE-CANCELLED")
+
+  ((blocking-event type)
+   "A blocking event.
+
+This event blocks on all handlers it passes through and blocks the issuing
+thread until it is done being handled. This behaviour is sometimes desired,
+especially in cases where remote communication is involved and sequential
+execution on the issuing side must be ensured. This order cannot be
+guaranteed with standard events, as while the events are issued in order
+and handled in order by the same handler, they might change order between
+different handlers.
+
+See EVENT")
   
   ((message-event type)
    "A simple event merely used to deliver message strings.

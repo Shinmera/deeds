@@ -8,6 +8,10 @@
 (defpackage #:deeds
   (:nicknames #:org.shirakumo.deeds)
   (:use #:cl)
+  ;; command.lisp
+  (:export
+   #:command-event
+   #:define-command)
   ;; event-delivery.lisp
   (:export
    #:start
@@ -18,7 +22,8 @@
    #:delivery-function
    #:queued-event-delivery
    #:event-task
-   #:event-task-event)
+   #:event-task-event
+   #:blocking-event-task)
   ;; event-loop.lisp
   (:export
    #:handler
@@ -47,6 +52,7 @@
    #:cancelled
    #:define-event
    #:cancel
+   #:blocking-event
    #:message-event
    #:message
    #:info-event
