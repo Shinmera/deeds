@@ -19,13 +19,15 @@
                `(,name :initform ,value :initarg ,(keyword name) ,@kargs))))
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
       (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-        (destructuring-bind (&rest options &key superclasses &allow-other-keys) options
+        (destructuring-bind (&rest options &key superclasses loop &allow-other-keys) options
           `(progn
              (define-event ,name (command-event ,@superclasses)
                ,(mapcar #'make-field (cdr (remove-if #'lambda-keyword-p args))))
              (defun ,name ,(cdr args)
-               (do-issue ,name ,@(loop for var in (cdr pure-args)
-                                       collect (keyword var) collect var)))
+               (do-issue ,name 
+                 :loop ,loop
+                 ,@(loop for var in (cdr pure-args)
+                         collect (keyword var) collect var)))
              (define-handler (,name ,name) ,pure-args
                ,@(removef options :superclasses)
                ,@body)))))))
