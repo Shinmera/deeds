@@ -96,6 +96,9 @@
   (:method ((event event))
     (setf (cancelled event) T)))
 
+(define-event blocking-event ()
+  ())
+
 (define-event message-event ()
   ((message :initarg :message :reader message))
   (:default-initargs

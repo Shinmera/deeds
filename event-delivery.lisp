@@ -47,8 +47,16 @@
    (make-instance 'event-task :event event) event-delivery)
   event)
 
+(defmethod issue ((blocking-event blocking-event) (event-delivery queued-event-delivery))
+  (simple-tasks:schedule-task
+   (make-instance 'blocking-event-task :event blocking-event) event-delivery)
+  blocking-event)
+
 (defclass event-task (simple-tasks:task)
   ((event :initarg :event :accessor event-task-event)))
 
 (defmethod simple-tasks:run-task ((event-task event-task))
   (handle (event-task-event event-task) (simple-tasks:runner event-task)))
+
+(defclass blocking-event-task (event-task simple-tasks:blocking-task)
+  ())

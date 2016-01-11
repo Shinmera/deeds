@@ -47,6 +47,9 @@
                                    :name (format NIL "~a thread" parallel-handler)))
       (push thread (threads parallel-handler)))))
 
+(defmethod issue ((blocking-event blocking-event) (parallel-handler parallel-handler))
+  (handle blocking-event parallel-handler))
+
 (defmethod stop ((parallel-handler parallel-handler))
   (loop for thread = (bt:with-lock-held ((handler-lock parallel-handler))
                        (pop (threads parallel-handler)))
