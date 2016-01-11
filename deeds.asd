@@ -25,4 +25,5 @@
                (:file "documentation"))
   :depends-on (:closer-mop
                :simple-tasks
-               :bordeaux-threads))
+               :bordeaux-threads
+               :lambda-fiddle))

@@ -14,20 +14,27 @@
            (lambda-keyword-p (a) (find a lambda-list-keywords))
            (ensure-list (a) (if (listp a) a (list a)))
            (unlist (a) (if (listp a) (car a) a))
-           (make-field (a)
+           (make-req-field (a)
+             (destructuring-bind (name &rest kargs) (ensure-list a)
+               `(,name :initarg ,(keyword name) :initform (error ,(format T "~a required." name)) ,@kargs)))
+           (make-opt-field (a)
              (destructuring-bind (name &optional value &rest kargs) (ensure-list a)
-               `(,name :initform ,value :initarg ,(keyword name) ,@kargs))))
+               `(,name :initarg ,(keyword name) :initform ,value ,@kargs))))
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
-      (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-        (destructuring-bind (&rest options &key superclasses loop &allow-other-keys) options
-          `(progn
-             (define-event ,name (command-event ,@superclasses)
-               ,(mapcar #'make-field (cdr (remove-if #'lambda-keyword-p args))))
-             (defun ,name ,(cdr args)
-               (do-issue ,name 
-                 :loop ,loop
-                 ,@(loop for var in (cdr pure-args)
-                         collect (keyword var) collect var)))
-             (define-handler (,name ,name) ,pure-args
-               ,@(removef options :superclasses)
-               ,@body)))))))
+      (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) args
+        (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
+          (destructuring-bind (&rest options &key superclasses loop &allow-other-keys) options
+            `(progn
+               (define-event ,name (command-event ,@superclasses)
+                 (,@(mapcar #'make-req-field (cdr required))
+                  ,@(mapcar #'make-opt-field optional)
+                  ,@(when rest (list (make-req-field rest)))
+                  ,@(mapcar #'make-opt-field key)))
+               (defun ,name ,(cdr args)
+                 (do-issue ,name 
+                   :loop ,loop
+                   ,@(loop for var in (cdr pure-args)
+                           collect (keyword var) collect var)))
+               (define-handler (,name ,name) ,pure-args
+                 ,@(removef options :superclasses)
+                 ,@body))))))))
