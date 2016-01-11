@@ -19,7 +19,11 @@
                `(,name :initarg ,(keyword name) :initform (error ,(format T "~a required." name)) ,@kargs)))
            (make-opt-field (a)
              (destructuring-bind (name &optional value &rest kargs) (ensure-list a)
-               `(,name :initarg ,(keyword name) :initform ,value ,@kargs))))
+               `(,name :initarg ,(keyword name) :initform ,value ,@kargs)))
+           (make-opt-arg (a)
+             (destructuring-bind (name &optional value &rest kargs) (ensure-list a)
+               (declare (ignore kargs))
+               `(,name ,value))))
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
       (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) args
         (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
@@ -30,7 +34,10 @@
                   ,@(mapcar #'make-opt-field optional)
                   ,@(when rest (list (make-req-field rest)))
                   ,@(mapcar #'make-opt-field key)))
-               (defun ,name ,(cdr args)
+               (defun ,name (,@(mapcar #'unlist required)
+                             ,@(when optional `(&optional ,@(mapcar #'make-opt-arg optional)))
+                             ,@(when rest `(&rest ,rest))
+                             ,@(when optional `(&key ,@(mapcar #'make-opt-arg key))))
                  (do-issue ,name 
                    :loop ,loop
                    ,@(loop for var in (cdr pure-args)
