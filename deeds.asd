@@ -14,6 +14,7 @@
   :homepage "https://github.com/Shinmera/deeds"
   :serial T
   :components ((:file "package")
+               (:file "class-slots")
                (:file "toolkit")
                (:file "origin")
                (:file "forward-class-definitions")

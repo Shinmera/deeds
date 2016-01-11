@@ -6,7 +6,7 @@
 
 (in-package #:org.shirakumo.deeds)
 
-(defclass event-class (standard-class)
+(defclass event-class (cached-slots-class)
   ())
 
 (defmethod c2mop:validate-superclass ((class event-class) (superclass t))

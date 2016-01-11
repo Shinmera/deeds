@@ -26,6 +26,37 @@
                        `(setf (documentation ',var ',type) ,doc)))))
 
 (setdocs
+  ((cached-slots-class type)
+   "A metaclass that caches all the direct slot instances available to it.
+
+The cache is renewed on re/initialization of the class.
+
+See CLASS-ALL-DIRECT-SLOTS")
+
+  (class-all-direct-slots
+   "Returns all direct slots of the given class, including those of its superclasses.
+
+This can potentially be a very costly operation as it might have
+to traverse the entire class hierarchy to find all slots.
+If the class is a CACHED-SLOTS-CLASS, then the result will be
+quick as it is cached. If it is not cached, it is computed by
+COMPUTE-ALL-DIRECT-SLOTS.
+
+See CACHED-SLOTS-CLASS
+See COMPUTE-ALL-DIRECT-SLOTS")
+
+  (compute-all-direct-slots
+   "Computes all direct slots of the given class, including those of its superclasses.
+
+This simply traverses the class hierarchy upwards, gathering all
+direct-slots instances along the way. If one class along the way
+is a CACHED-SLOTS-CLASS, the CLASS-ALL-DIRECT-SLOTS value is used
+directly instead of traversing further. This does not apply for
+the passed class.
+
+See CACHED-SLOTS-CLASS"))
+
+(setdocs
   ((command-event type)
    "Event used for commands
 

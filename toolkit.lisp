@@ -6,19 +6,6 @@
 
 (in-package #:org.shirakumo.deeds)
 
-(defun class-all-direct-slots (class)
-  (let ((slots ()))
-    (labels ((traverse (class)
-               (when (typep class 'standard-class)
-                 (c2mop:finalize-inheritance class)
-                 (dolist (slot (c2mop:class-direct-slots class))
-                   (push slot slots))
-                 (mapc #'traverse (c2mop:class-direct-superclasses class)))))
-      (traverse (etypecase class
-                  (standard-class class)
-                  (symbol (find-class class)))))
-    (nreverse slots)))
-
 (defun find-slot-accessor (slot)
   (loop for writer in (c2mop:slot-definition-writers slot)
         thereis (find writer (c2mop:slot-definition-readers slot)

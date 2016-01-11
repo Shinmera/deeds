@@ -8,6 +8,11 @@
 (defpackage #:deeds
   (:nicknames #:org.shirakumo.deeds)
   (:use #:cl)
+  ;; class-slots.lisp
+  (:export
+   #:cached-slots-class
+   #:class-all-direct-slots
+   #:compute-all-direct-slots)
   ;; command.lisp
   (:export
    #:command-event
