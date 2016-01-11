@@ -16,7 +16,7 @@
            (unlist (a) (if (listp a) (car a) a))
            (make-req-field (a)
              (destructuring-bind (name &rest kargs) (ensure-list a)
-               `(,name :initarg ,(keyword name) :initform (error ,(format T "~a required." name)) ,@kargs)))
+               `(,name :initarg ,(keyword name) :initform (error ,(format NIL "~a required." name)) ,@kargs)))
            (make-opt-field (a)
              (destructuring-bind (name &optional value &rest kargs) (ensure-list a)
                `(,name :initarg ,(keyword name) :initform ,value ,@kargs)))
