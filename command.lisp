@@ -25,19 +25,19 @@
                (declare (ignore kargs))
                `(,name ,value))))
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
-      (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) args
+      (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) (cdr args)
         (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
           (destructuring-bind (&rest options &key superclasses loop &allow-other-keys) options
             `(progn
                (define-event ,name (command-event ,@superclasses)
-                 (,@(mapcar #'make-req-field (cdr required))
+                 (,@(mapcar #'make-req-field required)
                   ,@(mapcar #'make-opt-field optional)
                   ,@(when rest (list (make-req-field rest)))
                   ,@(mapcar #'make-opt-field key)))
                (defun ,name (,@(mapcar #'unlist required)
                              ,@(when optional `(&optional ,@(mapcar #'make-opt-arg optional)))
                              ,@(when rest `(&rest ,rest))
-                             ,@(when optional `(&key ,@(mapcar #'make-opt-arg key))))
+                             ,@(when key `(&key ,@(mapcar #'make-opt-arg key))))
                  (do-issue ,name 
                    :loop ,loop
                    ,@(loop for var in (cdr pure-args)
