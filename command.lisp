@@ -27,7 +27,7 @@
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
       (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) (cdr args)
         (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-          (destructuring-bind (&rest options &key superclasses loop &allow-other-keys) options
+          (destructuring-bind (&rest options &key superclasses (loop '*standard-event-loop*) &allow-other-keys) options
             `(progn
                (define-event ,name (command-event ,@superclasses)
                  (,@(mapcar #'make-req-field required)
