@@ -22,7 +22,12 @@
   ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
    (event-loop-lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock))
   (:default-initargs
-   :delivery-function (lambda (event) (deliver-event-directly event event-loop))))
+   :delivery-function NIL))
+
+(defmethod handle ((event event) (event-loop event-loop))
+  (if (delivery-function event-loop)
+      (call-next-method)
+      (deliver-event-directly event event-loop)))
 
 (defmethod handler ((name symbol) (event-loop event-loop))
   (gethash name (handlers event-loop)))
