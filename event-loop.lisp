@@ -63,26 +63,30 @@
                       event-loop))
 
 (defun test-filter (filter event)
-  (typecase filter
-    (cons
-     (case (first filter)
-       (and
-        (loop for form in (cdr filter)
-              always (test-filter form event)))
-       (or
-        (loop for form in (cdr filter)
-              thereis (test-filter form event)))
-       (not
-        (not (test-filter (second filter) event)))
-       (T
-        (apply (first filter)
-               (loop for form in (cdr filter) collect (test-filter form event))))))
-    (null NIL)
-    (symbol
-     (let ((slot (or (find-class-slot-fuzzy filter (class-of event))
-                     (error "Don't know how to access the variable ~s in class ~s" filter (class-of event)))))
-       (slot-value event (c2mop:slot-definition-name slot))))
-    (T filter)))
+  (labels ((eval-test (test)
+             (typecase test
+               (cons
+                (case (first test)
+                  (and
+                   (loop for form in (cdr test)
+                         always (eval-test form)))
+                  (or
+                   (loop for form in (cdr test)
+                         thereis (eval-test form)))
+                  (not
+                   (not (eval-test (second test))))
+                  (T
+                   (apply (first test)
+                          (loop for form in (cdr test) collect (eval-test form))))))
+               (null NIL)
+               (symbol
+                (let ((slot (or (find-class-slot-fuzzy test (class-of event))
+                                (error "Don't know how to access the variable ~s in class ~s" test (class-of event)))))
+                  (slot-value event (c2mop:slot-definition-name slot))))
+               (T test))))
+    (if filter
+        (eval-test filter)
+        T)))
 
 (defmethod deliver-event-directly ((event event) (event-loop event-loop))
   (loop for handler being the hash-values of (handlers event-loop)
