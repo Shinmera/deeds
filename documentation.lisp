@@ -702,11 +702,29 @@ See *STANDARD-EVENT-LOOP*
 See FILTER
 See WITH-FUZZY-SLOT-BINDINGS
 See WITH-ORIGIN")
+
+  ((one-time-handler type)
+   "A handler that can only be called exactly once.
+
+On first call the handler acquires a lock that is then never released
+again. When a subsequent call is issued, the lock cannot be acquired
+and HANDLE immediately returns.
+
+The handler executes its function in a new thread and thus does not
+block the event loop.
+
+See THREAD
+See HANDLER-LOCK
+See WITH-ONE-TIME-HANDLER")
+
+  (thread
+   "Accessor to a thread.")
   
   ((with-one-time-handler)
    "Constructs a handler that can only handle a single event before being deregistered again.
 
 See DEFINE-HANDLER
+See ONE-TIME-HANDLER
 See DEREGISTER-HANDLER"))
 
 ;; origin.lisp

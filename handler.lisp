@@ -98,12 +98,23 @@
                (when ,old (stop ,old))
                (values ,self ,old))))))))
 
+(defclass one-time-handler (handler)
+  ((handler-lock :initform (bt:make-lock "one-time-handler-lock") :accessor handler-lock)
+   (thread :initform NIL :accessor thread)))
+
+(defmethod handle ((event event) (handler one-time-handler))
+  (when (bt:acquire-lock (handler-lock handler))
+    (setf (thread handler)
+          (bt:make-thread (lambda ()
+                            (funcall (delivery-function handler) event))))))
+
 (defmacro with-one-time-handler (event-type args &body options-and-body)
   (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
     (let ((self (or (getf options :self) (gensym "SELF")))
           (loop (or (getf options :loop) '*standard-event-loop*)))
       `(define-handler (NIL ,event-type) ,args
          :self ,self
+         :class 'one-time-handler
          ,@options
          (unwind-protect
               (progn ,@body)

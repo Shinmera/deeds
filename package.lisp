@@ -112,6 +112,9 @@
    #:locally-blocking-handler
    #:globally-blocking-handler
    #:define-handler
+   #:one-time-handler
+   #:thread
+   #:handler-lock
    #:with-one-time-handler)
   ;; origin.lisp
   (:export
