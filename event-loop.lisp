@@ -113,7 +113,7 @@
   (setf (sorted-handlers event-loop)
         (sort-handlers (handlers event-loop) event-loop)))
 
-(defmethod sort-handlers ((handlers hash-table) sorted-event-loop)
+(defmethod sort-handlers ((handlers hash-table) (event-loop sorted-event-loop))
   (sort-handlers (loop for v being the hash-values of handlers collect v)
                  event-loop))
 
