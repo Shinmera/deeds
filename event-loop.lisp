@@ -77,8 +77,10 @@
        (T
         (apply (first filter)
                (loop for form in (cdr filter) collect (test-filter form event))))))
+    (null NIL)
     (symbol
-     (let ((slot (find-class-slot-fuzzy filter (class-of event))))
+     (let ((slot (or (find-class-slot-fuzzy filter (class-of event))
+                     (error "Don't know how to access the variable ~s in class ~s" filter (class-of event)))))
        (slot-value event (c2mop:slot-definition-name slot))))
     (T filter)))
 
