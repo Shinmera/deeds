@@ -113,9 +113,9 @@
     (let ((self (or (getf options :self) (gensym "SELF")))
           (loop (or (getf options :loop) '*standard-event-loop*)))
       `(define-handler (NIL ,event-type) ,args
+         ,@options
          :self ,self
          :class 'one-time-handler
-         ,@options
          (unwind-protect
               (progn ,@body)
            (unwind-protect
