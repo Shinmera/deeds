@@ -6,19 +6,23 @@
 
 (in-package #:org.shirakumo.deeds)
 
+(defvar *standard-event-loop*) ;; See bottom
+
 (defgeneric handler (handler event-loop))
 (defgeneric (setf handler) (handler event-loop))
 (defgeneric register-handler (handler event-loop))
 (defgeneric deregister-handler (handler event-loop))
-(defgeneric sort-handlers (handlers event-loop))
-(defgeneric ensure-handlers-sorted (event-loop))
-(defgeneric build-event-loop (handlers event-loop))
-(defgeneric recompile-event-loop (event-loop))
+(defgeneric deliver-event-directly (event event-loop))
+(defgeneric sort-handlers (handlers sorted-event-loop))
+(defgeneric ensure-handlers-sorted (sorted-event-loop))
+(defgeneric build-event-loop (handlers compiled-event-loop))
+(defgeneric recompile-event-loop (compiled-event-loop))
 
 (defclass event-loop (queued-event-delivery)
   ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
-   (sorted-handlers :initform () :accessor sorted-handlers)
-   (event-loop-lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock)))
+   (event-loop-lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock))
+  (:default-initargs
+   :delivery-function (lambda (event) (deliver-event-directly event event-loop))))
 
 (defmethod handler ((name symbol) (event-loop event-loop))
   (gethash name (handlers event-loop)))
@@ -31,26 +35,21 @@
 (defmethod (setf handler) ((handler handler) (event-loop event-loop))
   (setf (gethash (or (name handler) handler) (handlers event-loop)) handler))
 
+(defmethod register-handler :around ((handler handler) (event-loop event-loop))
+  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (call-next-method)))
+
 (defmethod register-handler ((handler handler) (event-loop event-loop))
-  ;; Secure against race conditions
-  (let ((old (handler handler event-loop))
-        (handlers (copy-hash-table (handlers event-loop))))
-    (setf (gethash (or (name handler) handler) handlers) handler)
-    (let* ((sorted-handlers (sort-handlers handlers event-loop))
-           (loop-definition (build-event-loop sorted-handlers event-loop))
-           (compiled-loop (compile-lambda loop-definition)))
-      (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-        (setf (delivery-function event-loop) compiled-loop)
-        (setf (sorted-handlers event-loop) sorted-handlers)
-        (setf (handlers event-loop) handlers)))
+  (let ((old (handler handler event-loop)))
+    (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
     (values handler old)))
 
-(defmethod deregister-handler ((handler handler) (event-loop event-loop))
-  ;; Secure against race conditions
-  (remhash (or (name handler) handler) (handlers event-loop))
+(defmethod deregister-handler :around ((handler handler) (event-loop event-loop))
   (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-    (setf (sorted-handlers event-loop) (remove handler (sorted-handlers event-loop)))
-    (recompile-event-loop event-loop))
+    (call-next-method)))
+
+(defmethod deregister-handler ((handler handler) (event-loop event-loop))
+  (remhash (or (name handler) handler) (handlers event-loop))
   handler)
 
 (defmethod deregister-handler ((name symbol) (event-loop event-loop))
@@ -58,15 +57,67 @@
                           (error "No such handler ~s." name))
                       event-loop))
 
-(defmethod ensure-handlers-sorted ((event-loop event-loop))
+(defun test-filter (filter event)
+  (typecase filter
+    (cons
+     (case (first filter)
+       (and
+        (loop for form in (cdr filter)
+              always (test-filter form event)))
+       (or
+        (loop for form in (cdr filter)
+              thereis (test-filter form event)))
+       (not
+        (not (test-filter (second filter) event)))
+       (T
+        (apply (first filter)
+               (loop for form in (cdr filter) collect (test-filter form event))))))
+    (symbol
+     (let ((slot (find-class-slot-fuzzy filter (class-of event))))
+       (slot-value event (c2mop:slot-definition-name slot))))
+    (T filter)))
+
+(defmethod deliver-event-directly ((event event) (event-loop event-loop))
+  (loop for handler being the hash-values of (handlers event-loop)
+        do (when (and (typep event (event-type handler))
+                      (test-filter (filter handler) event))
+             (issue event handler))))
+
+(defmethod handle :around ((event event) (event-loop event-loop))
+  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (call-next-method)))
+
+(defmethod issue :before ((event event) (event-loop event-loop))
+  (setf (issue-time event) (get-universal-time)))
+
+(defmacro do-issue (event-type &rest args &key (loop '*standard-event-loop*) &allow-other-keys)
+  (let ((args (removef args :loop)))
+    `(issue (make-instance ',event-type ,@args :origin (here)) ,loop)))
+
+(defclass sorted-event-loop (event-loop)
+  ((sorted-handlers :initform () :accessor sorted-handlers)))
+
+(defmethod register-handler :after ((handler handler) (event-loop sorted-event-loop))
+  (ensure-handlers-sorted event-loop))
+
+(defmethod deregister-handler :after ((handler handler) (event-loop sorted-event-loop))
+  (setf (sorted-handlers event-loop) (remove handler (sorted-handlers event-loop))))
+
+(defmethod deliver-event-directly ((event event) (event-loop sorted-event-loop))
+  (loop for handler in (sorted-handlers event-loop)
+        do (when (and (typep event (event-type handler))
+                      (test-filter (filter handler) event))
+             (issue event handler))))
+
+(defmethod ensure-handlers-sorted ((event-loop sorted-event-loop))
   (setf (sorted-handlers event-loop)
         (sort-handlers (handlers event-loop) event-loop)))
 
-(defmethod sort-handlers ((handlers hash-table) event-loop)
+(defmethod sort-handlers ((handlers hash-table) sorted-event-loop)
   (sort-handlers (loop for v being the hash-values of handlers collect v)
                  event-loop))
 
-(defmethod sort-handlers ((handlers list) (event-loop event-loop))
+(defmethod sort-handlers ((handlers list) (event-loop sorted-event-loop))
   ;; Graph time, yeah! We want to do a topological sort here.
   (let ((edges (make-hash-table :test 'eql))
         (nodes (make-hash-table :test 'eql))
@@ -103,6 +154,15 @@
                     (multiple-value-bind (found node) (iterator)
                       (when found (visit node) T)))))
     sorted))
+
+(defclass compiled-event-loop (sorted-event-loop)
+  ())
+
+(defmethod register-handler :after ((handler handler) (event-loop compiled-event-loop))
+  (recompile-event-loop event-loop))
+
+(defmethod deregister-handler :after ((handler handler) (event-loop compiled-event-loop))
+  (recompile-event-loop event-loop))
 
 (defun filter-tests (filter)
   (let ((tests ()))
@@ -189,14 +249,13 @@
            collect `(and ,(gethash `(typep ev ',(event-type handler)) testmap)
                          ,(or (replace-tests (filter handler) (event-type handler) testmap) T))))))
 
-(defmethod recompile-event-loop ((event-loop event-loop))
-  (let* ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop))
-         (compiled-loop (compile-lambda loop-definition)))
-    (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-      (setf (delivery-function event-loop) compiled-loop)))
+(defmethod recompile-event-loop ((event-loop compiled-event-loop))
+  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (let ((loop-definition (build-event-loop (sorted-handlers event-loop) event-loop)))
+      (setf (delivery-function event-loop) (compile-lambda loop-definition))))
   event-loop)
 
-(defmethod build-event-loop ((handlers list) (event-loop event-loop))
+(defmethod build-event-loop ((handlers list) (event-loop compiled-event-loop))
   ;; Oh boy!
   (multiple-value-bind (cache inits filters) (extract-tests handlers)
     `(lambda (ev)
@@ -211,15 +270,5 @@
                    collect `(when ,filter
                               (issue ev ,handler))))))))
 
-(defmethod handle :around ((event event) (event-loop event-loop))
-  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-    (call-next-method)))
-
-(defmethod issue :before ((event event) (event-loop event-loop))
-  (setf (issue-time event) (get-universal-time)))
-
-(defvar *standard-event-loop* (start (make-instance 'event-loop)))
-
-(defmacro do-issue (event-type &rest args &key (loop '*standard-event-loop*) &allow-other-keys)
-  (let ((args (removef args :loop)))
-    `(issue (make-instance ',event-type ,@args :origin (here)) ,loop)))
+;; Initialise
+(setf *standard-event-loop* (start (make-instance 'compiled-event-loop)))

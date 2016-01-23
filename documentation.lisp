@@ -156,6 +156,9 @@ See EVENT-TASK"))
 
 ;; event-loop.lisp
 (setdocs
+  ((*standard-event-loop* variable)
+   "The default global instance of a compiled-event-loop.")
+  
   (handler
    "Accesses the named handler from the event-loop, if such exists.
 
@@ -179,6 +182,14 @@ Deregistering a handler might cause the event loop to be recompiled,
 which can be a costly operation.
 
 See RECOMPILE-EVENT-LOOP")
+
+  (deliver-event-directly
+   "Performs a primitive, direct delivery of the event on the loop.
+
+This means that handler filters are tested directly without any
+possible room for optimisation.
+
+See TEST-FILTER")
   
   (sort-handlers
    "Sort the given list of handlers into the proper issuing sequence.
@@ -186,20 +197,25 @@ See RECOMPILE-EVENT-LOOP")
 The returned list of handlers must be ordered in a way that the
 BEFORE and AFTER lists of all handlers are met. If a dependency
 cycle is detected, an error of type EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR
-must be signalled.")
+must be signalled.
+
+See SORTED-EVENT-LOOP")
   
   (ensure-handlers-sorted
    "Ensures that the handlers are properly sorted on the event-loop
 
 See SORTED-HANDLERS
-See SORT-HANDLERS")
+See SORT-HANDLERS
+See SORTED-EVENT-LOOP")
   
   (build-event-loop
    "Build a lambda form for the event loop delivery function.
 
 The handlers must be in the properly sorted order as returned by
 SORT-HANDLERS on the same EVENT-LOOP object as is used to call
-this function.")
+this function.
+
+See COMPILED-EVENT-LOOP")
   
   (recompile-event-loop
    "Cause the event loop to be recompiled.
@@ -212,21 +228,26 @@ of registered handlers and a slow compiler, this might take up to
 the order of seconds to run.
 
 See BUILD-EVENT-LOOP
-See ENSURE-HANDLERS-SORTED")
+See ENSURE-HANDLERS-SORTED
+See COMPILED-EVENT-LOOP")
   
   ((event-loop type)
    "The base class for an event loop.
 
-Implements a standard queued event loop that respects all other
-constraints. Supports rudimentary optimisation of the event loop
-handler filter tests to speed up delivery and generates a tight
-event delivery function that should allow issuing events to
-handlers very efficiently.
+This event loop is incredibly crude and should only serve as a basis
+for either very specific scenarios or to build a new event-loop on
+top of it. It does not sort the handlers properly nor optimise the
+delivery in any way but simply tests and calls each handler in
+whatever order it might find them in at the moment.
+
+On the other hand, de/registering handlers will be very cheap on
+this handler, as no recompilation or analysis is required.
 
 See QUEUED-EVENT-DELIVERY
 See HANDLERS
-See SORTED-HANDLERS
-See EVENT-LOOP-LOCK")
+See EVENT-LOOP-LOCK
+See SORTED-EVENT-LOOP
+See COMPILED-EVENT-LOOP")
   
   (handlers
    "An EQL hash-table of the registered handlers on the event-loop.
@@ -234,23 +255,34 @@ Be careful when modifying this table, as it is not synchronised.
 
 See EVENT-LOOP-LOCK")
   
-  (sorted-handlers
-   "A list of the registered handlers in their properly sorted order.
-
-This function might become temporarily out of sync with HANDLERS.
-
-See SORT-HANDLERS
-See ENSURE-HANDLERS-SORTED")
-  
   (event-loop-lock
    "A lock used to synchronise access to the event-loop slots.
 
 See HANDLERS
 See SORTED-HANDLERS
 See DELIVERY-FUNCTION")
-  
-  ((*standard-event-loop* variable)
-   "The default global instance of an event-loop.")
+
+  (test-filter
+   "Test the filter against the event.
+
+Note that you must test whether the event is of applicable type as
+required by the test yourself, since the test form does not contain
+this information in itself.
+
+The structure of a filter is as follows:
+
+FILTER     ::= COMBINATOR | TEST
+COMBINATOR ::= (AND TEST*) | (OR TEST*) | (NOT TEST)
+TEST       ::= (function ARGUMENT*)
+ARGUMENT   ::= fuzzy-slot-symbol | atom
+
+fuzzy-slot-symbols denote the value of a slot on the event object.
+The actual slot is figured out per FIND-CLASS-SLOT-FUZZY on the
+EVENT-TYPE of the handler.
+
+See FIND-CLASS-SLOT-FUZZY
+
+See FILTER")
   
   ((do-issue)
    "Shorthand macro to allow more convenient issuing of events.
@@ -259,7 +291,42 @@ Supports one extra keyword argument that will not be passed along
 to the MAKE-INSTANCE call: LOOP will instead denote the event-loop
 to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*
 
-See *STANDARD-EVENT-LOOP*"))
+See *STANDARD-EVENT-LOOP*")
+
+  ((sorted-event-loop type)
+   "An event loop that respects the sorting order of handlers.
+
+This event loop will always make sure the handlers are in proper
+order to be called in, but does not perform any further optimisation.
+As such, this handler should still be reasonably fast to de/register
+handlers on, but will obviously suffer the deficiencies in issuing
+due to the lack of optimisation.
+
+See EVENT-LOOP
+See SORTED-HANDLERS
+See COMPILED-EVENT-LOOP")
+
+  (sorted-handlers
+   "A list of the registered handlers in their properly sorted order.
+
+This function might become temporarily out of sync with HANDLERS.
+
+See SORT-HANDLERS
+See ENSURE-HANDLERS-SORTED
+See SORTED-EVENT-LOOP")
+
+  ((compiled-event-loop type)
+   "An optimised event loop that compiles the issuing function for fast delivery.
+
+Implements a standard queued event loop that respects all other
+constraints. Supports rudimentary optimisation of the event loop
+handler filter tests to speed up delivery and generates a tight
+event delivery function that should allow issuing events to
+handlers very efficiently.
+
+See SORTED-EVENT-LOOP
+See BUILD-EVENT-LOOP
+See RECOMPILE-EVENT-LOOP"))
 
 ;; event.lisp
 (setdocs
@@ -541,18 +608,7 @@ See HANDLE-CANCELLED")
   (filter
    "The specification of a filter to figure out which events the handler accepts.
 
-The structure of a filter is as follows:
-
-FILTER     ::= COMBINATOR | TEST
-COMBINATOR ::= (AND TEST*) | (OR TEST*) | (NOT TEST)
-TEST       ::= (function ARGUMENT*)
-ARGUMENT   ::= fuzzy-slot-symbol | atom
-
-fuzzy-slot-symbols denote the value of a slot on the event object.
-The actual slot is figured out per FIND-CLASS-SLOT-FUZZY on the
-EVENT-TYPE of the handler.
-
-See FIND-CLASS-SLOT-FUZZY")
+See TEST-FILTER")
   
   (before
    "A list of handler names or categories before which this handler should be called.")

@@ -31,19 +31,23 @@
    #:blocking-event-task)
   ;; event-loop.lisp
   (:export
+   #:*standard-event-loop*
    #:handler
    #:register-handler
    #:deregister-handler
+   #:deliver-event-directly
    #:sort-handlers
    #:ensure-handlers-sorted
    #:build-event-loop
    #:recompile-event-loop
    #:event-loop
    #:handlers
-   #:sorted-handlers
    #:event-loop-lock
-   #:*standard-event-loop*
-   #:do-issue)
+   #:test-filter
+   #:do-issue
+   #:sorted-event-loop
+   #:sorted-handlers
+   #:compiled-event-loop)
   ;; event.lisp
   (:export
    #:event-class
