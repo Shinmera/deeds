@@ -87,16 +87,19 @@
                           :name ',name
                           :event-type ',event-type
                           :filter ',filter
-                          :delivery-function
-                          (lambda (,ev)
-                            (declare (ignorable ,ev))
-                            (with-origin (',name)
-                              (with-fuzzy-slot-bindings ,args (,ev ,event-type)
-                                ,@body)))))
+                          ,@(when body
+                              `(:delivery-function
+                                (lambda (,ev)
+                                  (declare (ignorable ,ev))
+                                  (with-origin (',name)
+                                    (with-fuzzy-slot-bindings ,args (,ev ,event-type)
+                                      ,@body)))))))
              (start ,self)
-             (multiple-value-bind (,self ,old) (register-handler ,self ,loop)
-               (when ,old (stop ,old))
-               (values ,self ,old))))))))
+             ,(if loop
+                  `(multiple-value-bind (,self ,old) (register-handler ,self ,loop)
+                     (when ,old (stop ,old))
+                     (values ,self ,old))
+                  self)))))))
 
 (defclass one-time-handler (handler)
   ((handler-lock :initform (bt:make-lock "one-time-handler-lock") :accessor handler-lock)
