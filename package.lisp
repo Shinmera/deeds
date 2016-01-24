@@ -115,7 +115,9 @@
    #:one-time-handler
    #:thread
    #:handler-lock
-   #:with-one-time-handler)
+   #:with-one-time-handler
+   #:condition-notify-handler
+   #:with-response)
   ;; origin.lisp
   (:export
    #:*origin*

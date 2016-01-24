@@ -124,3 +124,38 @@
            (unwind-protect
                 (deregister-handler ,self ,loop)
              (stop ,self)))))))
+
+(defclass condition-notify-handler (one-time-handler)
+  ((condition-variable :initform (bt:make-condition-variable) :accessor condition-variable)
+   (issue-synchronizer-lock :initform (bt:make-lock) :accessor issue-synchronizer-lock)
+   (response-event :initform NIL :accessor response-event)))
+
+(defmethod handle ((event event) (handler condition-notify-handler))
+  (setf (event handler) ev)
+  ;; Quickly access lock to make sure the issuer has
+  ;; entered the condition-wait.
+  (bt:with-lock-held ((issue-synchronizer-lock handler)))
+  (bt:condition-notify (condition-variable handler)))
+
+(defmacro with-response (issue response (&key filter timeout (loop '*standard-event-loop*)) &body body)
+  (let ((handler (gensym "HANDLER")))
+    (destructuring-bind (issue-event &rest issue-args) (ensure-list issue)
+      (destructuring-bind (response-event &optional (event 'ev) &rest response-args) (ensure-list response)
+        `(let ((,handler (make-instance
+                          'condition-notify-handler
+                          :event-type ',response-event
+                          :filter ',filter)))
+           (start ,handler)
+           (unwind-protect
+                (bt:with-lock-held ((issue-synchronizer-lock ,handler))
+                  (register-handler ,handler ,loop)
+                  (do-issue ,issue-event ,@issue-args)
+                  (when (bt:condition-wait (condition-variable ,handler)
+                                           (issue-synchronizer-lock ,handler)
+                                           :timeout ,timeout)
+                    (let ((,event (response-event ,handler)))
+                      (declare (ignorable ,event))
+                      (with-fuzzy-slot-bindings ,response-args (,event ,response-event)
+                        ,@body))))
+             (deregister-handler ,handler ,loop)
+             (stop ,handler)))))))
