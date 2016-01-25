@@ -137,11 +137,13 @@
    (response-event :initform NIL :accessor response-event)))
 
 (defmethod handle ((event event) (handler condition-notify-handler))
-  (setf (event handler) ev)
+  (setf (response-event handler) event)
   ;; Quickly access lock to make sure the issuer has
   ;; entered the condition-wait.
   (bt:with-lock-held ((issue-synchronizer-lock handler)))
-  (bt:condition-notify (condition-variable handler)))
+  (bt:condition-notify (condition-variable handler))
+  ;; Satisfy the one-time-handler return.
+  T)
 
 (defmacro with-response (issue response (&key filter timeout (loop '*standard-event-loop*)) &body body)
   (let ((handler (gensym "HANDLER")))
