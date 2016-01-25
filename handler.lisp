@@ -75,7 +75,7 @@
   (bt:with-recursive-lock-held ((handler-lock globally-blocking-handler))
     (call-next-method)))
 
-(defun make-handler (&rest options &key (loop *standard-event-loop*) (class 'queued-handler))
+(defun make-handler (&rest options &key (loop *standard-event-loop*) (class 'queued-handler) &allow-other-keys)
   (let* ((options (removef options :loop :class))
          (instance (apply #'make-instance class options)))
     (start instance)
