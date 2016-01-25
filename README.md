@@ -22,7 +22,7 @@ By default the system will set up and launch a standard event loop on `*standard
       (format T "~&INFO: ~a~%" message))
     
     (deeds:define-handler (smiling-handler deeds:info-event) (event message)
-      :filter (search ":)" message)
+      :filter '(search ":)" message)
       (format T "~&YAY: ~a~%" message))
 
 Now let's issue some events and see what happens:

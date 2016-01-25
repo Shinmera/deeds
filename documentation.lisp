@@ -616,6 +616,9 @@ See TEST-FILTER")
   (after
    "A list of handler names or categories after which this handler should be called.")
 
+  (loops
+   "Accessor to all the loops the handler is registered on right now.")
+
   (handle-cancelled
    "Accessor to whether the handler will handle events even if they are marked as being cancelled.")
   
@@ -671,59 +674,72 @@ being processed.
 
 See HANDLER
 See HANDLER-LOCK")
-  
-  ((define-handler)
-   "Define and register a new event handler on a particular event loop.
 
-Defining a new handler this way will simply construct the handler object,
+  (make-handler
+   "Creates a new handler instance and takes care of registering it.
+
+Creating a new handler this way will simply construct the handler object,
 start it, and register it on the event loop. If a handler with the same
 name already exists on the event loop, this old handler is stopped and
 replaced by the new one.
 
-ARGS must be a list of at least one value, which must be a symbol that is
-bound to the event instance. The rest of the args are slots of the event,
-bound by WITH-FUZZY-SLOT-BINDINGS.
-
-The OPTIONS are passed to the make-instance call of the handler with the
-exception of :LOOP, :CLASS, :FILTER, and :SELF. :LOOP specifies the loop
-to which the event handler is registered. :CLASS specifies the name of
-the class the handler is instantiated from. :FILTER specifies the filter
-that specifies the accepted events. :SELF is a symbol bound to the handler
-instance itself within the BODY. :CLASS defaults to QUEUED-HANDLER and 
-:LOOP defaults to *STANDARD-EVENT-LOOP*.
-
-The body of the handler function is within a WITH-ORIGIN environment, set
-to the name of the handler.
+Only the :LOOP and :CLASS options are not passed along to the
+make-instance call, as they are used by make-handler itself.
 
 See HANDLER
 See REGISTER-HANDLER
 See QUEUED-HANDLER
 See *STANDARD-EVENT-LOOP*
-See FILTER
-See WITH-FUZZY-SLOT-BINDINGS
-See WITH-ORIGIN")
-
-  ((one-time-handler type)
-   "A handler that can only be called exactly once.
-
-On first call the handler acquires a lock that is then never released
-again. When a subsequent call is issued, the lock cannot be acquired
-and HANDLE immediately returns.
-
-The handler executes its function in a new thread and thus does not
-block the event loop.
-
-See THREAD
-See HANDLER-LOCK
+See WITH-HANDLER
+See DEFINE-HANDLER
 See WITH-ONE-TIME-HANDLER")
 
-  (thread
-   "Accessor to a thread.")
+  ((with-handler)
+   "Convenient macro to construct a handler.
+
+ARGS must be a list of at least one value, which must be a symbol that is
+bound to the event instance. The rest of the args are slots of the event,
+bound by WITH-FUZZY-SLOT-BINDINGS.
+
+The actual body forms are composed into a lambda form which is passed
+as the :DELIVERY-FUNCTION argument to MAKE-HANDLER alongside with
+EVENT-TYPE. It is also wrapped in a WITH-ORIGIN environment where the
+origin is set to the :NAME option.
+
+See MAKE-HANDLER
+See WITH-FUZZY-SLOT-BINDINGS
+See WITH-ORIGIN")
+  
+  ((define-handler)
+   "Define and register a new event handler on a particular event loop.
+
+This simply expands to a WITH-HANDLER form with a few extra options
+to make things easier. Most notably, NAME is transformed (quoted) into
+the :NAME option. If the :SELF option is given, it names the symbol
+to which the instance of the handler itself is bound, from which it is
+accessible from within the handler body.
+
+See WITH-HANDLER")
+
+  ((one-time-handler type)
+   "A handler that can only be called until it is successful.
+
+If the delivery-function of the handler returns a non-NIL result, the
+handler immediately deregisters itself from all its loops and stops
+itself, thus only ever handling one \"correct\" event.
+
+The return test is done to allow the user more sophisticated testing
+of the event than is possible through the filter mechanism.
+
+See QUEUED-HANDLER
+See WITH-ONE-TIME-HANDLER")
   
   ((with-one-time-handler)
    "Constructs a handler that can only handle a single event before being deregistered again.
 
-See DEFINE-HANDLER
+Defaults the class to ONE-TIME-HANDLER.
+
+See WITH-HANDLER
 See ONE-TIME-HANDLER
 See DEREGISTER-HANDLER")
 

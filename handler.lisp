@@ -75,56 +75,61 @@
   (bt:with-recursive-lock-held ((handler-lock globally-blocking-handler))
     (call-next-method)))
 
-(defmacro define-handler ((name event-type) args &body options-and-body)
+(defun make-handler (&rest options &key (loop *standard-event-loop*) (class 'queued-handler))
+  (let* ((options (removef options :loop :class))
+         (instance (apply #'make-instance class options)))
+    (start instance)
+    (if loop
+        (let ((old (nth-value 1 (register-handler instance loop))))
+          (when old (stop old))
+          (values instance old))
+        instance)))
+
+(defmacro with-handler (event-type args &body options-and-body)
   (destructuring-bind (ev &rest args) args
     (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-      (destructuring-bind (&rest options &key (loop '*standard-event-loop*) (class ''queued-handler) filter (self (gensym "SELF")) &allow-other-keys) options
-        (let ((options (removef options :loop :class :filter :self))
-              (old (gensym "OLD-HANDLER")))
-          `(let (,self)
-             (setf ,self (make-instance
-                          ,class
-                          ,@options
-                          :name ',name
-                          :event-type ',event-type
-                          :filter ',filter
-                          ,@(when body
-                              `(:delivery-function
-                                (lambda (,ev)
-                                  (declare (ignorable ,ev))
-                                  (with-origin (',name)
-                                    (with-fuzzy-slot-bindings ,args (,ev ,event-type)
-                                      ,@body)))))))
-             (start ,self)
-             ,(if loop
-                  `(multiple-value-bind (,self ,old) (register-handler ,self ,loop)
-                     (when ,old (stop ,old))
-                     (values ,self ,old))
-                  self)))))))
+      `(make-handler
+        ,@options
+        :event-type ,event-type
+        ,@(when body
+            `(:delivery-function
+              (lambda (,ev)
+                (declare (ignorable ,ev))
+                (with-origin (,(getf options :name))
+                  (with-fuzzy-slot-bindings ,args (,ev ,event-type)
+                    ,@body)))))))))
 
-(defclass one-time-handler (handler)
-  ((handler-lock :initform (bt:make-lock "one-time-handler-lock") :accessor handler-lock)
-   (thread :initform NIL :accessor thread)))
+(defmacro define-handler ((name event-type) args &body options-and-body)
+  (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
+    (destructuring-bind (&rest options &key (self (gensym "SELF")) &allow-other-keys) options
+      (let ((options (removef options :self))
+            (new (gensym "NEW")) (old (gensym "OLD")))
+        ;; Race condition on self set.
+        `(let (,self)
+           (multiple-value-bind (,new ,old)
+               (with-handler ',event-type ,args
+                 ,@options
+                 :name ',name
+                 ,@body)
+             (setf ,self ,new)
+             (values ,new ,old)))))))
+
+(defclass one-time-handler (queued-handler)
+  ())
 
 (defmethod handle ((event event) (handler one-time-handler))
-  (when (bt:acquire-lock (handler-lock handler))
-    (setf (thread handler)
-          (bt:make-thread (lambda ()
-                            (funcall (delivery-function handler) event))))))
+  (when (call-next-method)
+    (unwind-protect
+         (dolist (loop (loops handler))
+           (deregister-handler handler loop))
+      (stop handler))))
 
 (defmacro with-one-time-handler (event-type args &body options-and-body)
   (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-    (let ((self (or (getf options :self) (gensym "SELF")))
-          (loop (or (getf options :loop) '*standard-event-loop*)))
-      `(define-handler (NIL ,event-type) ,args
-         ,@options
-         :self ,self
-         :class 'one-time-handler
-         (unwind-protect
-              (progn ,@body)
-           (unwind-protect
-                (deregister-handler ,self ,loop)
-             (stop ,self)))))))
+    `(with-handler ,event-type ,args
+       ,@options
+       :class 'one-time-handler
+       ,@body)))
 
 (defclass condition-notify-handler (one-time-handler)
   ((condition-variable :initform (bt:make-condition-variable) :accessor condition-variable)
@@ -145,7 +150,7 @@
         `(let ((,handler (make-instance
                           'condition-notify-handler
                           :event-type ',response-event
-                          :filter ',filter)))
+                          :filter ,filter)))
            (start ,handler)
            (unwind-protect
                 (bt:with-lock-held ((issue-synchronizer-lock ,handler))

@@ -105,18 +105,21 @@
    #:filter
    #:before
    #:after
+   #:loops
+   #:handle-cancelled
    #:parallel-handler
    #:threads
    #:handler-lock
    #:queued-handler
    #:locally-blocking-handler
    #:globally-blocking-handler
+   #:make-handler
+   #:with-handler
    #:define-handler
    #:one-time-handler
-   #:thread
-   #:handler-lock
    #:with-one-time-handler
    #:condition-notify-handler
+   #:response-event
    #:with-response)
   ;; origin.lisp
   (:export
