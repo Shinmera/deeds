@@ -65,6 +65,9 @@
         unless found collect key
         unless found collect val))
 
+(defun ensure-list (a &rest elements)
+  (if (listp a) a (list* a elements)))
+
 (defun compile-lambda (lambda)
   (handler-bind ((style-warning #'muffle-warning)
                  #+sbcl (sb-ext:compiler-note #'muffle-warning))
