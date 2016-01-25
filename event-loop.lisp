@@ -47,6 +47,7 @@
 (defmethod register-handler ((handler handler) (event-loop event-loop))
   (let ((old (handler handler event-loop)))
     (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
+    (pushnew event-loop (loops handler))
     (values handler old)))
 
 (defmethod deregister-handler :around ((handler handler) (event-loop event-loop))
@@ -55,6 +56,7 @@
 
 (defmethod deregister-handler ((handler handler) (event-loop event-loop))
   (remhash (or (name handler) handler) (handlers event-loop))
+  (setf (loops handler) (remove event-loop (loops handler)))
   handler)
 
 (defmethod deregister-handler ((name symbol) (event-loop event-loop))

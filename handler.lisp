@@ -12,7 +12,8 @@
    (filter :initarg :filter :reader filter)
    (before :initarg :before :reader before)
    (after :initarg :after :reader after)
-   (handle-cancelled :initarg :handle-cancelled :reader handle-cancelled))
+   (handle-cancelled :initarg :handle-cancelled :reader handle-cancelled)
+   (loops :initform NIL :accessor loops))
   (:default-initargs
    :name NIL
    :event-type 'event
