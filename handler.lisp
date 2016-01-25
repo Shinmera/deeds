@@ -90,7 +90,7 @@
     (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
       `(make-handler
         ,@options
-        :event-type ,event-type
+        :event-type ',event-type
         ,@(when body
             `(:delivery-function
               (lambda (,ev)
@@ -107,7 +107,7 @@
         ;; Race condition on self set.
         `(let (,self)
            (multiple-value-bind (,new ,old)
-               (with-handler ',event-type ,args
+               (with-handler ,event-type ,args
                  ,@options
                  :name ',name
                  ,@body)
