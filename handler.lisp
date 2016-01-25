@@ -117,7 +117,7 @@
 (defclass one-time-handler (queued-handler)
   ())
 
-(defmethod handle ((event event) (handler one-time-handler))
+(defmethod handle :around ((event event) (handler one-time-handler))
   (when (call-next-method)
     (unwind-protect
          (dolist (loop (loops handler))
