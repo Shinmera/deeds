@@ -93,10 +93,14 @@ extension through that."))
 
 (setdocs
   (start
-   "Start the event delivery and make it ready to accept and deliver events.")
+   "Start the event delivery and make it ready to accept and deliver events.
+
+If the delivery is already running this does nothing.")
   
   (stop
-   "Stop the event delivery to stop it from accepting and delivering events.")
+   "Stop the event delivery to prevent it from accepting and delivering events.
+
+If the delivery is already stopped this does nothing.")
   
   (issue
    "Issue an event to the delivery so that it is sent out to the handlers.

@@ -33,13 +33,13 @@
   ())
 
 (defmethod start ((event-delivery queued-event-delivery))
-  (when (simple-tasks:status= event-delivery :runing)
-    (cerror "Start anyway" "~a is already started!" event-delivery))
-  (simple-tasks:make-runner-thread event-delivery)
+  (unless (simple-tasks:status= event-delivery :running)
+    (simple-tasks:make-runner-thread event-delivery))
   event-delivery)
 
 (defmethod stop ((event-delivery queued-event-delivery))
-  (simple-tasks:stop-runner event-delivery)
+  (when (simple-tasks:status= event-delivery :running)
+    (simple-tasks:stop-runner event-delivery))
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery queued-event-delivery))
