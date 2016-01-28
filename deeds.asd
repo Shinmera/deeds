@@ -23,8 +23,10 @@
                (:file "event-loop")
                (:file "handler")
                (:file "command")
-               (:file "documentation"))
+               (:file "documentation")
+               #-deeds-no-startup (:file "startup"))
   :depends-on (:closer-mop
                :simple-tasks
                :bordeaux-threads
                :lambda-fiddle))
+

@@ -285,4 +285,4 @@
                               (issue ev ,handler))))))))
 
 ;; Initialise
-(setf *standard-event-loop* (start (make-instance 'compiled-event-loop)))
+(setf *standard-event-loop* (make-instance 'compiled-event-loop))
