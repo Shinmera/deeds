@@ -53,7 +53,7 @@
   (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;INFO: ~a~%&quot; message))
 
 (<a href="#DEEDS:DEFINE-HANDLER">deeds:define-handler</a> (smiling-handler deeds:info-event) (<a href="#DEEDS:EVENT">event</a> message)
-  :filter (<a href="http://l1sp.org/cl/search">search</a> &quot;:)&quot; message)
+  :filter '(<a href="http://l1sp.org/cl/search">search</a> &quot;:)&quot; message)
   (<a href="http://l1sp.org/cl/format">format</a> T &quot;~&amp;YAY: ~a~%&quot; message))
 </code></pre>
 
@@ -107,13 +107,13 @@
 
 <p>However, this can become severely limiting when the amount of events and handlers becomes significant. The first optimisation is to separate the loop out into a dedicated thread with an event queue that buffers events. This unblocks the issuing thread and ensures that nothing is held up waiting. The next obvious improvement is to cache the dependency graph walking by generating the proper order of handlers upon handler registration. Finally we can realise that the event handler filters will share a lot of common tests which can be potentially rather costly if repeated too often. It would be good if those could be cached and bundled together to avoid unnecessary retesting.</p>
 
-<p>The default implementation <code><a href="#DEEDS:EVENT-LOOP">event-loop</a></code> in Deeds solves these in the following manner: the unblocking of the issuing thread is achieved through <a href="http://shinmera.github.io/simple-tasks/">simple-tasks</a>' <code>queued-runner</code>, which already provides the exact mechanism we need. The dependency graph is calculated through <a href="https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm">Tarjan's algorithm</a> and cached as a list. It is recalculated every time a new handler is registered by <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>. Finally, to make the event loop efficient it is treated as a <code><a href="http://l1sp.org/cl/compile">compile</a></code>d function that is built dynamically whenever necessary through <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>. The mechanism of this is rather complicated.</p>
+<p>The default implementation <code><a href="#DEEDS:COMPILED-EVENT-LOOP">compiled-event-loop</a></code> in Deeds solves these in the following manner: the unblocking of the issuing thread is achieved through <a href="http://shinmera.github.io/simple-tasks/">simple-tasks</a>' <code>queued-runner</code>, which already provides the exact mechanism we need. The dependency graph is calculated through <a href="https://en.wikipedia.org/wiki/Tarjan%27s_strongly_connected_components_algorithm">Tarjan's algorithm</a> and cached as a list. It is recalculated every time a new handler is registered by <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>. Finally, to make the event loop efficient it is treated as a <code><a href="http://l1sp.org/cl/compile">compile</a></code>d function that is built dynamically whenever necessary through <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>. The mechanism of this is rather complicated.</p>
 
 <p>First, in order to optimise and cache tests the loop is separated into three &quot;phases&quot;. The first phase establishes lexical bindings for all tests and performs the type tests on the event object. The second phase performs the actual tests on the event as extracted from the handlers' filters if they are applicable under the current event class. Finally, the handlers are called in their <code><a href="#DEEDS:SORTED-HANDLERS">sorted-handlers</a></code> order if their filter passes. The bulk of this behaviour is done by <code>extract-tests</code> which uses <code>filter-tests</code> to extract all tests from a filter. Tests are simply compared through <code><a href="http://l1sp.org/cl/equal">equal</a></code> to see if they are the &quot;same&quot;. This is a very conservative comparison as several types of tests would return the same result even if their forms are not <code><a href="http://l1sp.org/cl/equal">equal</a></code> such as for commutative tests. <code>compile-test</code> is used to replace the variable references within a test with event slot accessors as discovered by <code>build-fuzzy-slot-accessor</code>. Finally <code>replace-tests</code> is used to replace the tests in a filter with the corresponding variables that are outputted to cache the tests. This is then all packed together into a <code><a href="http://l1sp.org/cl/lambda">lambda</a></code> form that can then be <code><a href="http://l1sp.org/cl/compile">compile</a></code>d into a function object.</p>
 
 <p>The optimisations done here are not optimal however. For example, no effort is done to group <code><a href="http://l1sp.org/cl/when">when</a></code> forms together in the outputted form when possible. This could save on branching and repeat tests in the resulting form. Similarly, no effort is done to recognise whether the required type tests of the handlers are actually strictly necessary or could be weakened to allow further grouping and conflating of tests. There are potentially many more possible improvements that could be done to make the event loop function even tighter, however the algorithms necessary to achieve this would quickly explode in complexity. For now we settle on this rather primitive approach as being sufficient.</p>
 
-<p>However, you can of course extend the system on your own by subclassing <code><a href="#DEEDS:EVENT-LOOP">event-loop</a></code> and implementing the proper methods such as <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>, <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>, <code><a href="#DEEDS:REGISTER-HANDLER">register-handler</a></code>, and <code><a href="#DEEDS:DEREGISTER-HANDLER">deregister-handler</a></code>.</p>
+<p>However, you can of course extend the system on your own by subclassing <code><a href="#DEEDS:EVENT-LOOP">event-loop</a></code>/<code><a href="#DEEDS:SORTED-EVENT-LOOP">sorted-event-loop</a></code>/<code><a href="#DEEDS:COMPILED-EVENT-LOOP">compiled-event-loop</a></code> and implementing the proper methods such as <code><a href="#DEEDS:BUILD-EVENT-LOOP">build-event-loop</a></code>, <code><a href="#DEEDS:SORT-HANDLERS">sort-handlers</a></code>, <code><a href="#DEEDS:REGISTER-HANDLER">register-handler</a></code>, and <code><a href="#DEEDS:DEREGISTER-HANDLER">deregister-handler</a></code>.</p>
 </span>
         
       </article>
@@ -166,7 +166,62 @@ See WITH-ORIGIN</pre>
                         <span class="arguments">()</span>
                       </code>
                     </header>
-                    <pre class="docstring">The default global instance of an event-loop.</pre>
+                    <pre class="docstring">The default global instance of a compiled-event-loop.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:BLOCKING-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:BLOCKING-EVENT" class="name">BLOCKING-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A blocking event.
+
+This event blocks on all handlers it passes through and blocks the issuing
+thread until it is done being handled. This behaviour is sometimes desired,
+especially in cases where remote communication is involved and sequential
+execution on the issuing side must be ensured. This order cannot be
+guaranteed with standard events, as while the events are issued in order
+and handled in order by the same handler, they might change order between
+different handlers.
+
+See EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:BLOCKING-EVENT-TASK"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:BLOCKING-EVENT-TASK" class="name">BLOCKING-EVENT-TASK</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A simple container to deliver events using the simple-tasks framework, blocking variant.
+
+See EVENT-TASK</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CACHED-SLOTS-CLASS"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:CACHED-SLOTS-CLASS" class="name">CACHED-SLOTS-CLASS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A metaclass that caches all the direct slot instances available to it.
+
+The cache is renewed on re/initialization of the class.
+
+See CLASS-ALL-DIRECT-SLOTS</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:CHUNKED-PAYLOAD-EVENT"/>
@@ -183,6 +238,64 @@ See WITH-ORIGIN</pre>
 
 See PAYLOAD-EVENT
 See SEQUENCE-EVENT</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:COMMAND-EVENT"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:COMMAND-EVENT" class="name">COMMAND-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Event used for commands
+
+See DEFINE-COMMAND</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:COMPILED-EVENT-LOOP"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:COMPILED-EVENT-LOOP" class="name">COMPILED-EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An optimised event loop that compiles the issuing function for fast delivery.
+
+Implements a standard queued event loop that respects all other
+constraints. Supports rudimentary optimisation of the event loop
+handler filter tests to speed up delivery and generates a tight
+event delivery function that should allow issuing events to
+handlers very efficiently.
+
+See SORTED-EVENT-LOOP
+See BUILD-EVENT-LOOP
+See RECOMPILE-EVENT-LOOP</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CONDITION-NOTIFY-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:CONDITION-NOTIFY-HANDLER" class="name">CONDITION-NOTIFY-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Handler that notifies a condition variable once it receives its event.
+Saves the received event in its slot.
+
+See ONE-TIME-HANDLER
+See CONDITION-VARIABLE
+See ISSUE-SYNCHRONIZER-LOCK
+See RESPONSE-EVENT
+See WITH-RESPONSE</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:ERROR-EVENT"/>
@@ -292,16 +405,20 @@ See DELIVERY-FUNCTION</pre>
                     </header>
                     <pre class="docstring">The base class for an event loop.
 
-Implements a standard queued event loop that respects all other
-constraints. Supports rudimentary optimisation of the event loop
-handler filter tests to speed up delivery and generates a tight
-event delivery function that should allow issuing events to
-handlers very efficiently.
+This event loop is incredibly crude and should only serve as a basis
+for either very specific scenarios or to build a new event-loop on
+top of it. It does not sort the handlers properly nor optimise the
+delivery in any way but simply tests and calls each handler in
+whatever order it might find them in at the moment.
+
+On the other hand, de/registering handlers will be very cheap on
+this handler, as no recompilation or analysis is required.
 
 See QUEUED-EVENT-DELIVERY
 See HANDLERS
-See SORTED-HANDLERS
-See EVENT-LOOP-LOCK</pre>
+See EVENT-LOOP-LOCK
+See SORTED-EVENT-LOOP
+See COMPILED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:EVENT-SLOT"/>
@@ -455,6 +572,29 @@ See EVENT
 See MESSAGE</pre>
                   </article>
                 </li><li>
+                  <a name="DEEDS:ONE-TIME-HANDLER"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:ONE-TIME-HANDLER" class="name">ONE-TIME-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A handler that can only be called until it is successful.
+
+If the delivery-function of the handler returns a non-NIL result, the
+handler immediately deregisters itself from all its loops and stops
+itself, thus only ever handling one &quot;correct&quot; event.
+
+The return test is done to allow the user more sophisticated testing
+of the event than is possible through the filter mechanism.
+
+See QUEUED-HANDLER
+See WITH-ONE-TIME-HANDLER</pre>
+                  </article>
+                </li><li>
                   <a name="DEEDS:PARALLEL-HANDLER"/>
                   <article>
                     <header class="class">
@@ -546,6 +686,29 @@ See QUEUED-EVENT-DELIVERY</pre>
 See EVENT
 See INDEX
 See MAX-INDEX</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:SORTED-EVENT-LOOP"/>
+                  <article>
+                    <header class="class">
+                      <span class="type">class</span>
+                      <code>
+                        <h4><a href="#DEEDS:SORTED-EVENT-LOOP" class="name">SORTED-EVENT-LOOP</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">()</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">An event loop that respects the sorting order of handlers.
+
+This event loop will always make sure the handlers are in proper
+order to be called in, but does not perform any further optimisation.
+As such, this handler should still be reasonably fast to de/register
+handlers on, but will obviously suffer the deficiencies in issuing
+due to the lack of optimisation.
+
+See EVENT-LOOP
+See SORTED-HANDLERS
+See COMPILED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:STREAM-BEGIN-EVENT"/>
@@ -757,6 +920,21 @@ See EVENT-CONDITION-VALUE</pre>
                     <pre class="docstring">Accessor to whether the event has been cancelled.
 
 See CANCEL</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:CLASS-ALL-DIRECT-SLOTS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:CLASS-ALL-DIRECT-SLOTS" class="name">CLASS-ALL-DIRECT-SLOTS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Finds all direct-slot instances that this class will inherit.
+
+More explicitly, it traverses the superclass tree and gathers all direct-slots it can find.</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:DELIVERY-FUNCTION"/>
@@ -984,6 +1162,32 @@ See EVENT-LOOP-LOCK</pre>
 See ISSUE.</pre>
                   </article>
                 </li><li>
+                  <a name="DEEDS:LOOPS"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:LOOPS" class="name">LOOPS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accessor to all the loops the handler is registered on right now.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:RESPONSE-EVENT"/>
+                  <article>
+                    <header class="accessor">
+                      <span class="type">accessor</span>
+                      <code>
+                        <h4><a href="#DEEDS:RESPONSE-EVENT" class="name">RESPONSE-EVENT</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accessor to the response event the handler captures.</pre>
+                  </article>
+                </li><li>
                   <a name="DEEDS:SORTED-HANDLERS"/>
                   <article>
                     <header class="accessor">
@@ -999,7 +1203,8 @@ See ISSUE.</pre>
 This function might become temporarily out of sync with HANDLERS.
 
 See SORT-HANDLERS
-See ENSURE-HANDLERS-SORTED</pre>
+See ENSURE-HANDLERS-SORTED
+See SORTED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:THREADS"/>
@@ -1013,6 +1218,89 @@ See ENSURE-HANDLERS-SORTED</pre>
                       </code>
                     </header>
                     <pre class="docstring">The threads of the parallel-handler.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:COMPUTE-ALL-DIRECT-SLOTS"/>
+                  <article>
+                    <header class="function">
+                      <span class="type">function</span>
+                      <code>
+                        <h4><a href="#DEEDS:COMPUTE-ALL-DIRECT-SLOTS" class="name">COMPUTE-ALL-DIRECT-SLOTS</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(CLASS)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Computes all direct slots of the given class, including those of its superclasses.
+
+This simply traverses the class hierarchy upwards, gathering all
+direct-slots instances along the way. If one class along the way
+is a CACHED-SLOTS-CLASS, the CLASS-ALL-DIRECT-SLOTS value is used
+directly instead of traversing further. This does not apply for
+the passed class.
+
+See CACHED-SLOTS-CLASS</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:MAKE-HANDLER"/>
+                  <article>
+                    <header class="function">
+                      <span class="type">function</span>
+                      <code>
+                        <h4><a href="#DEEDS:MAKE-HANDLER" class="name">MAKE-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(&amp;REST OPTIONS &amp;KEY (LOOP *STANDARD-EVENT-LOOP*) (CLASS 'QUEUED-HANDLER)
+ &amp;ALLOW-OTHER-KEYS)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Creates a new handler instance and takes care of registering it.
+
+Creating a new handler this way will simply construct the handler object,
+start it, and register it on the event loop. If a handler with the same
+name already exists on the event loop, this old handler is stopped and
+replaced by the new one.
+
+Only the :LOOP and :CLASS options are not passed along to the
+make-instance call, as they are used by make-handler itself.
+
+See HANDLER
+See REGISTER-HANDLER
+See QUEUED-HANDLER
+See *STANDARD-EVENT-LOOP*
+See WITH-HANDLER
+See DEFINE-HANDLER
+See WITH-ONE-TIME-HANDLER</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:TEST-FILTER"/>
+                  <article>
+                    <header class="function">
+                      <span class="type">function</span>
+                      <code>
+                        <h4><a href="#DEEDS:TEST-FILTER" class="name">TEST-FILTER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(FILTER EVENT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Test the filter against the event.
+
+Note that you must test whether the event is of applicable type as
+required by the test yourself, since the test form does not contain
+this information in itself.
+
+The structure of a filter is as follows:
+
+FILTER     ::= COMBINATOR | TEST
+COMBINATOR ::= (AND TEST*) | (OR TEST*) | (NOT TEST)
+TEST       ::= (function ARGUMENT*)
+ARGUMENT   ::= fuzzy-slot-symbol | atom
+
+fuzzy-slot-symbols denote the value of a slot on the event object.
+The actual slot is figured out per FIND-CLASS-SLOT-FUZZY on the
+EVENT-TYPE of the handler.
+
+See FIND-CLASS-SLOT-FUZZY
+
+See FILTER</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:AFTER"/>
@@ -1048,14 +1336,16 @@ See ENSURE-HANDLERS-SORTED</pre>
                       <code>
                         <h4><a href="#DEEDS:BUILD-EVENT-LOOP" class="name">BUILD-EVENT-LOOP</a></h4>
                         <span class="qualifiers"></span>
-                        <span class="arguments">(HANDLERS EVENT-LOOP)</span>
+                        <span class="arguments">(HANDLERS COMPILED-EVENT-LOOP)</span>
                       </code>
                     </header>
                     <pre class="docstring">Build a lambda form for the event loop delivery function.
 
 The handlers must be in the properly sorted order as returned by
 SORT-HANDLERS on the same EVENT-LOOP object as is used to call
-this function.</pre>
+this function.
+
+See COMPILED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:CANCEL"/>
@@ -1076,6 +1366,24 @@ have HANDLE-CANCELLED set to a non-NIL value.
 
 See CANCELLED
 See HANDLE-CANCELLED</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DELIVER-EVENT-DIRECTLY"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:DELIVER-EVENT-DIRECTLY" class="name">DELIVER-EVENT-DIRECTLY</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT EVENT-LOOP)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Performs a primitive, direct delivery of the event on the loop.
+
+This means that handler filters are tested directly without any
+possible room for optimisation.
+
+See TEST-FILTER</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:DEREGISTER-HANDLER"/>
@@ -1104,13 +1412,14 @@ See RECOMPILE-EVENT-LOOP</pre>
                       <code>
                         <h4><a href="#DEEDS:ENSURE-HANDLERS-SORTED" class="name">ENSURE-HANDLERS-SORTED</a></h4>
                         <span class="qualifiers"></span>
-                        <span class="arguments">(EVENT-LOOP)</span>
+                        <span class="arguments">(SORTED-EVENT-LOOP)</span>
                       </code>
                     </header>
                     <pre class="docstring">Ensures that the handlers are properly sorted on the event-loop
 
 See SORTED-HANDLERS
-See SORT-HANDLERS</pre>
+See SORT-HANDLERS
+See SORTED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:EVENT-TYPE"/>
@@ -1138,18 +1447,7 @@ See SORT-HANDLERS</pre>
                     </header>
                     <pre class="docstring">The specification of a filter to figure out which events the handler accepts.
 
-The structure of a filter is as follows:
-
-FILTER     ::= COMBINATOR | TEST
-COMBINATOR ::= (AND TEST*) | (OR TEST*) | (NOT TEST)
-TEST       ::= (function ARGUMENT*)
-ARGUMENT   ::= fuzzy-slot-symbol | atom
-
-fuzzy-slot-symbols denote the value of a slot on the event object.
-The actual slot is figured out per FIND-CLASS-SLOT-FUZZY on the
-EVENT-TYPE of the handler.
-
-See FIND-CLASS-SLOT-FUZZY</pre>
+See TEST-FILTER</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:HANDLE"/>
@@ -1175,6 +1473,19 @@ By default this simply calls the DELIVERY-FUNCTION of the
 event-delivery with the given event.
 
 See ISSUE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:HANDLE-CANCELLED"/>
+                  <article>
+                    <header class="generic">
+                      <span class="type">generic</span>
+                      <code>
+                        <h4><a href="#DEEDS:HANDLE-CANCELLED" class="name">HANDLE-CANCELLED</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(OBJECT)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Accessor to whether the handler will handle events even if they are marked as being cancelled.</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:IDENTIFIER"/>
@@ -1300,7 +1611,7 @@ See WITH-ORIGIN</pre>
                       <code>
                         <h4><a href="#DEEDS:RECOMPILE-EVENT-LOOP" class="name">RECOMPILE-EVENT-LOOP</a></h4>
                         <span class="qualifiers"></span>
-                        <span class="arguments">(EVENT-LOOP)</span>
+                        <span class="arguments">(COMPILED-EVENT-LOOP)</span>
                       </code>
                     </header>
                     <pre class="docstring">Cause the event loop to be recompiled.
@@ -1313,7 +1624,8 @@ of registered handlers and a slow compiler, this might take up to
 the order of seconds to run.
 
 See BUILD-EVENT-LOOP
-See ENSURE-HANDLERS-SORTED</pre>
+See ENSURE-HANDLERS-SORTED
+See COMPILED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:REGISTER-HANDLER"/>
@@ -1343,7 +1655,7 @@ See RECOMPILE-EVENT-LOOP</pre>
                       <code>
                         <h4><a href="#DEEDS:SORT-HANDLERS" class="name">SORT-HANDLERS</a></h4>
                         <span class="qualifiers"></span>
-                        <span class="arguments">(HANDLERS EVENT-LOOP)</span>
+                        <span class="arguments">(HANDLERS SORTED-EVENT-LOOP)</span>
                       </code>
                     </header>
                     <pre class="docstring">Sort the given list of handlers into the proper issuing sequence.
@@ -1351,7 +1663,9 @@ See RECOMPILE-EVENT-LOOP</pre>
 The returned list of handlers must be ordered in a way that the
 BEFORE and AFTER lists of all handlers are met. If a dependency
 cycle is detected, an error of type EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR
-must be signalled.</pre>
+must be signalled.
+
+See SORTED-EVENT-LOOP</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:START"/>
@@ -1364,7 +1678,9 @@ must be signalled.</pre>
                         <span class="arguments">(EVENT-DELIVERY)</span>
                       </code>
                     </header>
-                    <pre class="docstring">Start the event delivery and make it ready to accept and deliver events.</pre>
+                    <pre class="docstring">Start the event delivery and make it ready to accept and deliver events.
+
+If the delivery is already running this does nothing.</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:STOP"/>
@@ -1377,7 +1693,48 @@ must be signalled.</pre>
                         <span class="arguments">(EVENT-DELIVERY)</span>
                       </code>
                     </header>
-                    <pre class="docstring">Stop the event delivery to stop it from accepting and delivering events.</pre>
+                    <pre class="docstring">Stop the event delivery to prevent it from accepting and delivering events.
+
+If the delivery is already stopped this does nothing.</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:DEFINE-COMMAND"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:DEFINE-COMMAND" class="name">DEFINE-COMMAND</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(NAME ARGS &amp;BODY OPTIONS-AND-BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Define a command.
+
+This is a combinging macro that does three things:
+  . Define an event of NAME with the necessary fields from ARGS.
+  . Define a function of NAME with the given ARGS that issues
+    an instance of this newly defined event.
+  . Define a handler of NAME on the NAME event with the given
+    OPTIONS-AND-BODY.
+
+A new option is available just for this macro with the name
+:SUPERCLASSES, which allows you to specify the direct-superclasses
+to use in the event definition.
+
+The first argument in ARGS must be the name for the event as
+required by DEFINE-HANDLER. The rest are arguments to the function
+and simultaneously slots on the event class. In order to allow you
+to specify slot options, arguments have the following structure:
+
+ARGS       ::= SINGLE* [&amp;optional DEFAULTING*] [&amp;rest SINGLE*] [&amp;key DEFAULTING*]
+SINGLE     ::= symbol | (symbol SLOT-ARG*)
+DEFAULTING ::= symbol | (symbol value SLOT-ARG*)
+SLOT-ARG   ::= keyword value
+
+The purpose of defining commands is to allow something akin to a
+function definition that can be treated as such for most purposes
+while still integrating it with the event system and allowing
+extension through that.</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:DEFINE-EVENT"/>
@@ -1408,33 +1765,13 @@ if it does not already appear somewhere as a transitive superclass.</pre>
                     </header>
                     <pre class="docstring">Define and register a new event handler on a particular event loop.
 
-Defining a new handler this way will simply construct the handler object,
-start it, and register it on the event loop. If a handler with the same
-name already exists on the event loop, this old handler is stopped and
-replaced by the new one.
+This simply expands to a WITH-HANDLER form with a few extra options
+to make things easier. Most notably, NAME is transformed (quoted) into
+the :NAME option. If the :SELF option is given, it names the symbol
+to which the instance of the handler itself is bound, from which it is
+accessible from within the handler body.
 
-ARGS must be a list of at least one value, which must be a symbol that is
-bound to the event instance. The rest of the args are slots of the event,
-bound by WITH-FUZZY-SLOT-BINDINGS.
-
-The OPTIONS are passed to the make-instance call of the handler with the
-exception of :LOOP, :CLASS, :FILTER, and :SELF. :LOOP specifies the loop
-to which the event handler is registered. :CLASS specifies the name of
-the class the handler is instantiated from. :FILTER specifies the filter
-that specifies the accepted events. :SELF is a symbol bound to the handler
-instance itself within the BODY. :CLASS defaults to QUEUED-HANDLER and 
-:LOOP defaults to *STANDARD-EVENT-LOOP*.
-
-The body of the handler function is within a WITH-ORIGIN environment, set
-to the name of the handler.
-
-See HANDLER
-See REGISTER-HANDLER
-See QUEUED-HANDLER
-See *STANDARD-EVENT-LOOP*
-See FILTER
-See WITH-FUZZY-SLOT-BINDINGS
-See WITH-ORIGIN</pre>
+See WITH-HANDLER</pre>
                   </article>
                 </li><li>
                   <a name="DEEDS:DO-ISSUE"/>
@@ -1488,6 +1825,32 @@ You must pass the class explicitly since we have to be able to analyse the slots
 See BUILD-FUZZY-SLOT-ACCESSOR</pre>
                   </article>
                 </li><li>
+                  <a name="DEEDS:WITH-HANDLER"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:WITH-HANDLER" class="name">WITH-HANDLER</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(EVENT-TYPE ARGS &amp;BODY OPTIONS-AND-BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">Convenient macro to construct a handler.
+
+ARGS must be a list of at least one value, which must be a symbol that is
+bound to the event instance. The rest of the args are slots of the event,
+bound by WITH-FUZZY-SLOT-BINDINGS.
+
+The actual body forms are composed into a lambda form which is passed
+as the :DELIVERY-FUNCTION argument to MAKE-HANDLER alongside with
+EVENT-TYPE. It is also wrapped in a WITH-ORIGIN environment where the
+origin is set to the :NAME option.
+
+See MAKE-HANDLER
+See WITH-FUZZY-SLOT-BINDINGS
+See WITH-ORIGIN</pre>
+                  </article>
+                </li><li>
                   <a name="DEEDS:WITH-ONE-TIME-HANDLER"/>
                   <article>
                     <header class="macro">
@@ -1500,7 +1863,10 @@ See BUILD-FUZZY-SLOT-ACCESSOR</pre>
                     </header>
                     <pre class="docstring">Constructs a handler that can only handle a single event before being deregistered again.
 
-See DEFINE-HANDLER
+Defaults the class to ONE-TIME-HANDLER.
+
+See WITH-HANDLER
+See ONE-TIME-HANDLER
 See DEREGISTER-HANDLER</pre>
                   </article>
                 </li><li>
@@ -1518,6 +1884,52 @@ See DEREGISTER-HANDLER</pre>
 
 See *ORIGIN*
 See HERE</pre>
+                  </article>
+                </li><li>
+                  <a name="DEEDS:WITH-RESPONSE"/>
+                  <article>
+                    <header class="macro">
+                      <span class="type">macro</span>
+                      <code>
+                        <h4><a href="#DEEDS:WITH-RESPONSE" class="name">WITH-RESPONSE</a></h4>
+                        <span class="qualifiers"></span>
+                        <span class="arguments">(ISSUE RESPONSE (&amp;KEY FILTER TIMEOUT (LOOP '*STANDARD-EVENT-LOOP*)) &amp;BODY BODY)</span>
+                      </code>
+                    </header>
+                    <pre class="docstring">A macro to de-asynchronise waiting for a response to an event.
+
+More specifically, this construct allows you to circumvent having to use
+callbacks and instead allows the handling of an event that is in response
+to an issued one in the same thread as if it all happened sequentially.
+
+ISSUE ::= event-type | (event-type initarg*)
+RESPONSE ::= event-type | (event-type [event-symbol slots*])
+
+In detail the following happens when the block generated by this macro
+is executed:
+ . A handler is instantiated with the given response event-type and filter.
+ . The handler is started up.
+ . The handler's synchronizer lock is acquired.
+ . The handler is registered on the given event-loop.
+ . An event is issued with the event-type and initargs onto the event-loop.
+ . Now the thread waits on the handler's condition variable.
+ . Once the thread is reawakened before the timeout it binds the event
+   from the handler and the specified slot variables, then proceeds to
+   evaluate the body.
+ . As a cleanup, the handler is deregistered and stopped.
+
+The handler itself performs the following steps once it HANDLEs an event:
+ . Acquire the one-time-handler exclusive lock.
+ . Save the event on its own slot.
+ . Acquire the synchronizer lock and immediately release it again to ensure
+   that the issuing thread is waiting on the condition variable.
+ . Notify the condition variable.
+
+See DO-ISSUE
+See REGISTER-HANDLER
+See DEREGISTER-HANDLER
+See WITH-FUZZY-SLOT-BINDINGS
+See CONDITION-NOTIFY-HANDLER</pre>
                   </article>
                 </li></ul>
             </li></ul>
