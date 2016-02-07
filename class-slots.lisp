@@ -21,7 +21,6 @@
 (defmethod c2mop:validate-superclass ((class cached-slots-class) (superclass cached-slots-class))
   T)
 
-
 (defmethod initialize-instance :after ((class cached-slots-class) &key)
   (setf (class-all-direct-slots class)
         (compute-all-direct-slots class)))
@@ -52,3 +51,9 @@
                   (standard-class class)
                   (symbol (find-class class)))))
     (nreverse slots)))
+
+(defmacro define-cached-slots-class (name direct-superclasses direct-slots &rest options)
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (defclass ,name ,direct-superclasses ,direct-slots
+       ,@options
+       (:metaclass cached-slots-class))))

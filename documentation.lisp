@@ -54,6 +54,14 @@ is a CACHED-SLOTS-CLASS, the CLASS-ALL-DIRECT-SLOTS value is used
 directly instead of traversing further. This does not apply for
 the passed class.
 
+See CACHED-SLOTS-CLASS")
+
+  ((define-cached-slots-class)
+   "Shorthand macro around defclass to define a cached-slots-class.
+
+All this does is wrap the defclass in an EVAL-WHEN and add the
+metaclass option for cached-slots-class.
+
 See CACHED-SLOTS-CLASS"))
 
 (setdocs

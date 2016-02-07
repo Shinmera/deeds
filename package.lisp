@@ -12,7 +12,8 @@
   (:export
    #:cached-slots-class
    #:class-all-direct-slots
-   #:compute-all-direct-slots)
+   #:compute-all-direct-slots
+   #:define-cached-slots-class)
   ;; command.lisp
   (:export
    #:command-event
