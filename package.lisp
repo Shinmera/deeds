@@ -56,6 +56,7 @@
    #:event-slot-mutable
    #:event-direct-slot-definition
    #:event-effective-slot-definition
+   #:with-immutable-slots-unlocked
    #:event
    #:issue-time
    #:origin

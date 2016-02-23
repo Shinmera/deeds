@@ -67,6 +67,10 @@
     (cerror "Write to the slot anyway." 'immutable-event-slot-modified
             :event event :slot (c2mop:slot-definition-name slotd) :value value)))
 
+(defmacro with-immutable-slots-unlocked (() &body body)
+  `(handler-bind ((immutable-event-slot-modified #'continue))
+     ,@body))
+
 (defclass event ()
   ((issue-time :accessor issue-time :initform NIL :mutable T)
    (origin :initarg :origin :initform *origin* :reader origin :mutable NIL)
@@ -74,7 +78,7 @@
   (:metaclass event-class))
 
 (defmethod initialize-instance :around ((event event) &key)
-  (handler-bind ((immutable-event-slot-modified #'continue))
+  (with-immutable-slots-unlocked ()
     (call-next-method)))
 
 (defmethod print-object ((event event) stream)

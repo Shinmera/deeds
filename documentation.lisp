@@ -380,6 +380,14 @@ See EVENT-SLOT")
 
 If such a slot is found, a warning of type IMMUTABLE-EVENT-SLOT-HAS-WRITER
 is signalled.")
+
+  ((with-immutable-slots-unlocked)
+   "Unlocks immutable slots, allowing you to modify them.
+
+This simply automatically calls the CONTINUE restart when an error of type
+IMMUTABLE-EVENT-SLOT-MODIFIED is signalled.
+
+See EVENT-SLOT")
   
   ((event type)
    "Base class for all events.
