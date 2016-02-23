@@ -24,6 +24,11 @@
   (:default-initargs
    :delivery-function NIL))
 
+(defmethod issue ((event event) (event-loop event-loop))
+  (with-immutable-slots-unlocked ()
+    (setf (event-loop event) event-loop))
+  (call-next-method))
+
 (defmethod handle ((event event) (event-loop event-loop))
   (if (delivery-function event-loop)
       (call-next-method)

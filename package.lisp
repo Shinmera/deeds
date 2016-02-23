@@ -58,6 +58,7 @@
    #:event-effective-slot-definition
    #:with-immutable-slots-unlocked
    #:event
+   #:event-loop
    #:issue-time
    #:origin
    #:cancelled

@@ -72,10 +72,13 @@
      ,@body))
 
 (defclass event ()
-  ((issue-time :accessor issue-time :initform NIL :mutable T)
-   (origin :initarg :origin :initform *origin* :reader origin :mutable NIL)
+  ((origin :initarg :origin :reader origin :mutable NIL)
+   (event-loop :initform NIL :reader event-loop :mutable NIL)
+   (issue-time :initform NIL :accessor issue-time :mutable T)
    (cancelled :initform NIL :accessor cancelled :mutable T))
-  (:metaclass event-class))
+  (:metaclass event-class)
+  (:default-initargs
+   :initform *origin*))
 
 (defmethod initialize-instance :around ((event event) &key)
   (with-immutable-slots-unlocked ()
