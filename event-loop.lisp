@@ -26,7 +26,7 @@
 
 (defmethod issue ((event event) (event-loop event-loop))
   (with-immutable-slots-unlocked ()
-    (setf (event-loop event) event-loop))
+    (setf (slot-value event 'event-loop) event-loop))
   (call-next-method))
 
 (defmethod handle ((event event) (event-loop event-loop))
