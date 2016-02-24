@@ -78,7 +78,7 @@
    (cancelled :initform NIL :accessor cancelled :mutable T))
   (:metaclass event-class)
   (:default-initargs
-   :initform *origin*))
+   :origin *origin*))
 
 (defmethod initialize-instance :around ((event event) &key)
   (with-immutable-slots-unlocked ()
