@@ -45,24 +45,34 @@
 (defmethod (setf handler) ((handler handler) (event-loop event-loop))
   (setf (gethash (or (name handler) handler) (handlers event-loop)) handler))
 
-(defmethod register-handler :around ((handler handler) (event-loop event-loop))
-  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
-    (call-next-method)))
-
 (defmethod register-handler ((handler handler) (event-loop event-loop))
-  (let ((old (handler handler event-loop)))
-    (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
-    (pushnew event-loop (loops handler))
-    (values handler old)))
+  (multiple-value-bind (new old) (register-handler (list handler) event-loop)
+    (values (first new) (first old))))
 
-(defmethod deregister-handler :around ((handler handler) (event-loop event-loop))
+(defmethod register-handler :around ((handlers list) (event-loop event-loop))
   (bt:with-recursive-lock-held ((event-loop-lock event-loop))
     (call-next-method)))
+
+(defmethod register-handler ((handlers list) (event-loop event-loop))
+  (let ((olds ()))
+    (dolist (handler handlers)
+      (push (handler handler event-loop) olds)
+      (setf (gethash (or (name handler) handler) (handlers event-loop)) handler)
+      (pushnew event-loop (loops handler)))
+    (values handlers (nreverse olds))))
 
 (defmethod deregister-handler ((handler handler) (event-loop event-loop))
-  (remhash (or (name handler) handler) (handlers event-loop))
-  (setf (loops handler) (remove event-loop (loops handler)))
-  handler)
+  (first (deregister-handler (list handler) event-loop)))
+
+(defmethod deregister-handler :around ((handlers list) (event-loop event-loop))
+  (bt:with-recursive-lock-held ((event-loop-lock event-loop))
+    (call-next-method)))
+
+(defmethod deregister-handler ((handlers list) (event-loop event-loop))
+  (dolist (handler handlers)
+    (remhash (or (name handler) handler) (handlers event-loop))
+    (setf (loops handler) (remove event-loop (loops handler))))
+  handlers)
 
 (defmethod deregister-handler ((name symbol) (event-loop event-loop))
   (deregister-handler (or (handler name event-loop)
@@ -116,11 +126,14 @@
 (defclass sorted-event-loop (event-loop)
   ((sorted-handlers :initform () :accessor sorted-handlers)))
 
-(defmethod register-handler :after ((handler handler) (event-loop sorted-event-loop))
+(defmethod register-handler :after ((handlers list) (event-loop sorted-event-loop))
   (ensure-handlers-sorted event-loop))
 
-(defmethod deregister-handler :after ((handler handler) (event-loop sorted-event-loop))
-  (setf (sorted-handlers event-loop) (remove handler (sorted-handlers event-loop))))
+(defmethod deregister-handler :after ((handlers list) (event-loop sorted-event-loop))
+  (setf (sorted-handlers event-loop)
+        (loop for handler in (sorted-handlers event-loop)
+              unless (find handler handlers)
+              collect handler)))
 
 (defmethod deliver-event-directly ((event event) (event-loop sorted-event-loop))
   (loop for handler in (sorted-handlers event-loop)
@@ -177,10 +190,10 @@
 (defclass compiled-event-loop (sorted-event-loop)
   ())
 
-(defmethod register-handler :after ((handler handler) (event-loop compiled-event-loop))
+(defmethod register-handler :after ((handlers list) (event-loop compiled-event-loop))
   (recompile-event-loop event-loop))
 
-(defmethod deregister-handler :after ((handler handler) (event-loop compiled-event-loop))
+(defmethod deregister-handler :after ((handlers list) (event-loop compiled-event-loop))
   (recompile-event-loop event-loop))
 
 (defun filter-tests (filter)
