@@ -16,8 +16,14 @@
   (:default-initargs
    :delivery-function #'print))
 
+(defmethod start ((stuff list))
+  (mapc #'start stuff))
+
 (defmethod start ((event-delivery event-delivery))
   event-delivery)
+
+(defmethod stop ((stuff list))
+  (mapc #'stop stuff))
 
 (defmethod stop ((event-delivery event-delivery))
   event-delivery)
