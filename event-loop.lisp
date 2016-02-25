@@ -123,11 +123,10 @@
   (let ((args (removef args :loop)))
     `(issue (make-instance ',event-type ,@args :origin (here)) ,loop)))
 
-(defmacro broadcast (event-type &rest args &key (loop '*standard-event-loop*) &allow-other-keys)
-  (let ((initargs (gensym "INITARGS")) (loo (gensym "LOOP")))
-    `(let ((,initargs (list ,@(removef args :loop))))
-       (dolist (,loo (ensure-list ,loop))
-         (issue (apply #'make-instance ',event-type ,initargs) ,loo)))))
+(defun broadcast (event-type &rest args &key (loop *standard-event-loop*) &allow-other-keys)
+  (let ((initargs (removef args :loop)))
+    (dolist (loop (ensure-list loop))
+      (issue (apply #'make-instance event-type initargs) loop))))
 
 (defclass sorted-event-loop (event-loop)
   ((sorted-handlers :initform () :accessor sorted-handlers)))

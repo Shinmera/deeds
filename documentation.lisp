@@ -306,7 +306,7 @@ to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*.
 See *STANDARD-EVENT-LOOP*")
 
   (broadcast
-   "Shorthand macro to allow issuing of an event to multiple loops.
+   "Shorthand function to allow issuing of an event to multiple loops.
 
 Supports an extra keyword argument that will not be passed along
 to the MAKE-INSTANCE call: LOOP will instead denote the event-loop/s
