@@ -301,7 +301,17 @@ See FILTER")
 
 Supports one extra keyword argument that will not be passed along
 to the MAKE-INSTANCE call: LOOP will instead denote the event-loop
-to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*
+to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*.
+
+See *STANDARD-EVENT-LOOP*")
+
+  (broadcast
+   "Shorthand macro to allow issuing of an event to multiple loops.
+
+Supports an extra keyword argument that will not be passed along
+to the MAKE-INSTANCE call: LOOP will instead denote the event-loop/s
+to which one instance each will be issued, defaulting to
+*STANDARD-EVENT-LOOP*.
 
 See *STANDARD-EVENT-LOOP*")
 

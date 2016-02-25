@@ -46,6 +46,7 @@
    #:event-loop-lock
    #:test-filter
    #:do-issue
+   #:broadcast
    #:sorted-event-loop
    #:sorted-handlers
    #:compiled-event-loop)
