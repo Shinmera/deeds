@@ -25,8 +25,9 @@
    :delivery-function NIL))
 
 (defmethod issue ((event event) (event-loop event-loop))
-  (with-immutable-slots-unlocked ()
-    (setf (slot-value event 'event-loop) event-loop))
+  (unless (event-loop event)
+    (with-immutable-slots-unlocked ()
+      (setf (slot-value event 'event-loop) event-loop)))
   (call-next-method))
 
 (defmethod handle ((event event) (event-loop event-loop))
