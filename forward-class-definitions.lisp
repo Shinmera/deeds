@@ -32,7 +32,7 @@
   (:report (lambda (c s) (format s "Attempted to write ~s to slot ~a of ~a."
                                  (event-condition-value c) (event-condition-slot c) (event-condition-event c)))))
 
-(define-condition immutable-event-slot-has-writer (warning event-condition)
+(define-condition immutable-event-slot-has-writer (style-warning event-condition)
   ((slot :initarg :slot :accessor event-condition-slot)
    (writers :initarg :writers :accessor event-condition-writers))
   (:report (lambda (c s) (format s "Defining writers ~s to an immutable slot ~a of ~a."
