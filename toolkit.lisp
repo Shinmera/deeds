@@ -65,6 +65,9 @@
         unless found collect key
         unless found collect val))
 
+(defun unlist (a)
+  (if (listp a) (first a) a))
+
 (defun ensure-list (a &rest elements)
   (if (listp a) a (list* a elements)))
 

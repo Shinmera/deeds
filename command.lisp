@@ -12,8 +12,6 @@
 (defmacro define-command (name args &body options-and-body)
   (labels ((keyword (a) (intern (string a) :keyword))
            (lambda-keyword-p (a) (find a lambda-list-keywords))
-           (ensure-list (a) (if (listp a) a (list a)))
-           (unlist (a) (if (listp a) (car a) a))
            (make-req-field (a)
              (destructuring-bind (name &rest kargs) (ensure-list a)
                `(,name :initarg ,(keyword name) :initform (error ,(format NIL "~a required." name)) ,@kargs)))
