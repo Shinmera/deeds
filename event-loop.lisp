@@ -96,8 +96,9 @@
                   (T
                    (apply (first test)
                           (loop for form in (cdr test) collect (eval-test form))))))
-               (null NIL)
                (keyword test)
+               ((eql NIL) test)
+               ((eql T) test)
                (symbol
                 (let ((slot (or (find-class-slot-fuzzy test (class-of event))
                                 (error "Don't know how to access the variable ~s in class ~s" test (class-of event)))))
