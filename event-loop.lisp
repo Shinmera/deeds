@@ -75,9 +75,10 @@
   handlers)
 
 (defmethod deregister-handler ((name symbol) (event-loop event-loop))
-  (deregister-handler (or (handler name event-loop)
-                          (error "No such handler ~s." name))
-                      event-loop))
+  (when name
+    (deregister-handler (or (handler name event-loop)
+                            (error "No such handler ~s." name))
+                        event-loop)))
 
 (defun test-filter (filter event)
   (labels ((eval-test (test)
