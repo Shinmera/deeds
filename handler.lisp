@@ -65,6 +65,10 @@
 (defclass queued-handler (handler queued-event-delivery)
   ())
 
+(defmethod print-object ((handler queued-handler) stream)
+  (print-unreadable-object (handler stream :type T :identity T)
+    (format stream "~s ~s ~s" :name (name handler) (simple-tasks:status handler))))
+
 (defclass locally-blocking-handler (handler)
   ())
 
