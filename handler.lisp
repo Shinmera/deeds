@@ -149,25 +149,34 @@
   ;; Satisfy the one-time-handler return.
   T)
 
-(defmacro with-response (issue response (&key filter timeout (loop '*standard-event-loop*)) &body body)
-  (let ((handler (gensym "HANDLER")))
-    (destructuring-bind (issue-event &rest issue-args) (ensure-list issue)
-      (destructuring-bind (response-event &optional (event 'ev) &rest response-args) (ensure-list response)
-        `(let ((,handler (make-instance
-                          'condition-notify-handler
-                          :event-type ',response-event
-                          :filter ,filter)))
-           (start ,handler)
-           (unwind-protect
-                (bt:with-lock-held ((issue-synchronizer-lock ,handler))
-                  (register-handler ,handler ,loop)
-                  (do-issue ,issue-event ,@issue-args)
-                  (when (bt:condition-wait (condition-variable ,handler)
-                                           (issue-synchronizer-lock ,handler)
-                                           :timeout ,timeout)
-                    (let ((,event (response-event ,handler)))
-                      (declare (ignorable ,event))
-                      (with-fuzzy-slot-bindings ,response-args (,event ,response-event)
-                        ,@body))))
-             (deregister-handler ,handler ,loop)
-             (stop ,handler)))))))
+(defmacro with-awaiting (response (&key filter timeout (loop '*standard-event-loop*)) setup-form &body body)
+  (let ((handler (gensym "HANDLER"))
+        (loop-g (gensym "LOOP")))
+    (destructuring-bind (response-event &optional (event 'ev) &rest response-args) (ensure-list response)
+      `(let ((,handler (make-instance
+                        'condition-notify-handler
+                        :event-type ',response-event
+                        :filter ,filter))
+             (,loop-g ,loop))
+         (start ,handler)
+         (unwind-protect
+              (bt:with-lock-held ((issue-synchronizer-lock ,handler))
+                (register-handler ,handler ,loop-g)
+                ,setup-form
+                (when (bt:condition-wait (condition-variable ,handler)
+                                         (issue-synchronizer-lock ,handler)
+                                         :timeout ,timeout)
+                  (let ((,event (response-event ,handler)))
+                    (declare (ignorable ,event))
+                    (with-fuzzy-slot-bindings ,response-args (,event ,response-event)
+                      ,@body))))
+           (deregister-handler ,handler ,loop-g)
+           (stop ,handler))))))
+
+(defmacro with-response (issue response (&key filter timeout (issue-loop '*standard-event-loop*) (response-loop issue-loop)) &body body)
+  `(with-awaiting ,response (:filter ,filter :timeout ,timeout :loop ,response-loop)
+                  ,(typecase issue
+                     (null)
+                     (list `(do-issue ,@issue :loop ,issue-loop))
+                     (T `(issue ,issue ,issue-loop)))
+     ,@body))

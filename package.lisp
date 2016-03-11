@@ -124,6 +124,7 @@
    #:with-one-time-handler
    #:condition-notify-handler
    #:response-event
+   #:with-awaiting
    #:with-response)
   ;; origin.lisp
   (:export
