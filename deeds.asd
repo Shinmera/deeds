@@ -28,5 +28,6 @@
   :depends-on (:closer-mop
                :simple-tasks
                :bordeaux-threads
-               :lambda-fiddle))
+               :lambda-fiddle
+               :form-fiddle))
 

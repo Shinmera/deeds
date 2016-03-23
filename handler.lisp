@@ -91,7 +91,7 @@
 
 (defmacro with-handler (event-type args &body options-and-body)
   (destructuring-bind (ev &rest args) args
-    (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
+    (multiple-value-bind (options body) (form-fiddle:split-body-options options-and-body)
       `(make-handler
         ,@options
         :event-type ',event-type
@@ -104,19 +104,17 @@
                     ,@body)))))))))
 
 (defmacro define-handler ((name event-type) args &body options-and-body)
-  (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
-    (destructuring-bind (&rest options &key (self (gensym "SELF")) &allow-other-keys) options
-      (let ((options (removef options :self))
-            (new (gensym "NEW")) (old (gensym "OLD")))
-        ;; Race condition on self set.
-        `(let (,self)
-           (multiple-value-bind (,new ,old)
-               (with-handler ,event-type ,args
-                 ,@options
-                 :name ',name
-                 ,@body)
-             (setf ,self ,new)
-             (values ,new ,old)))))))
+  (form-fiddle:with-body-options (body options (self (gensym "SELF"))) options-and-body
+    (let ((new (gensym "NEW")) (old (gensym "OLD")))
+      ;; Race condition on self set.
+      `(let (,self)
+         (multiple-value-bind (,new ,old)
+             (with-handler ,event-type ,args
+               ,@options
+               :name ',name
+               ,@body)
+           (setf ,self ,new)
+           (values ,new ,old))))))
 
 (defclass one-time-handler (queued-handler)
   ())
@@ -129,7 +127,7 @@
       (stop handler))))
 
 (defmacro with-one-time-handler (event-type args &body options-and-body)
-  (multiple-value-bind (options body) (parse-into-kargs-and-body options-and-body)
+  (multiple-value-bind (options body) (form-fiddle:split-body-options options-and-body)
     `(with-handler ,event-type ,args
        ,@options
        :class 'one-time-handler

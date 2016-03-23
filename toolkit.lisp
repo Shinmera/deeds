@@ -36,14 +36,6 @@
                                      `(,name ,(build-fuzzy-slot-accessor slot-ish class instance))))
      ,@body))
 
-(defun parse-into-kargs-and-body (body)
-  (values (loop for list = body then rest
-                for (key val . rest) = list
-                while (and (cdr list) (keywordp key))
-                collect key collect val
-                finally (setf body list))
-          body))
-
 (defun copy-hash-table (old &key (test (hash-table-test old))
                                  (size (hash-table-size old))
                                  (rehash-size (hash-table-rehash-size old))

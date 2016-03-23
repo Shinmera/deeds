@@ -894,16 +894,6 @@ You must pass the class explicitly since we have to be able to analyse the slots
 
 See BUILD-FUZZY-SLOT-ACCESSOR")
 
-  (parse-into-kargs-and-body
-   "Takes a list of forms and parses them into a list of kargs and body.
-
-More specifically, it parses the following structure:
-
-KARGS-AND-BODY ::= KARG* form*
-KARG           ::= keyword form
-
-This kind of structure is found on f.e. RESTART-CASE")
-
   (copy-hash-table
    "Copies the hash table.
 
