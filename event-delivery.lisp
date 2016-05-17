@@ -16,6 +16,9 @@
   (:default-initargs
    :delivery-function #'print))
 
+(defmethod running ((event-delivery event-delivery))
+  T)
+
 (defmethod start ((stuff list))
   (mapc #'start stuff))
 
@@ -38,13 +41,16 @@
 (defclass queued-event-delivery (event-delivery simple-tasks:queued-runner)
   ())
 
+(defmethod running ((event-delivery queued-event-delivery))
+  (simple-tasks:status= event-delivery :running))
+
 (defmethod start ((event-delivery queued-event-delivery))
-  (unless (simple-tasks:status= event-delivery :running)
+  (unless (running event-delivery)
     (simple-tasks:make-runner-thread event-delivery))
   event-delivery)
 
 (defmethod stop ((event-delivery queued-event-delivery))
-  (when (simple-tasks:status= event-delivery :running)
+  (when (running event-delivery)
     (simple-tasks:stop-runner event-delivery))
   event-delivery)
 

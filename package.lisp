@@ -20,6 +20,7 @@
    #:define-command)
   ;; event-delivery.lisp
   (:export
+   #:running
    #:start
    #:stop
    #:issue
