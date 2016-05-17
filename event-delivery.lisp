@@ -16,6 +16,9 @@
   (:default-initargs
    :delivery-function #'print))
 
+(defmethod running ((stuff list))
+  (every #'running stuff))
+
 (defmethod running ((event-delivery event-delivery))
   T)
 
