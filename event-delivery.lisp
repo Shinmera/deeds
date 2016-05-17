@@ -45,6 +45,9 @@
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
 
+(defmethod handle :after ((event blocking-event) (event-delviery event-delivery))
+  (setf (done event) T))
+
 (defclass queued-event-delivery (event-delivery)
   ((front-queue :initform (make-array 100 :adjustable T :fill-pointer 0) :accessor front-queue)
    (back-queue :initform (make-array 100 :adjustable T :fill-pointer 0) :accessor back-queue)
@@ -86,9 +89,9 @@
   (bt:condition-notify (queue-condition event-delivery))
   event)
 
-(defmethod issue ((event blocking-event) (event-delivery queued-event-delivery))
-  ;; FIXME
-  blocking-event)
+(defmethod issue :after ((event blocking-event) (event-delivery queued-event-delivery))
+  ;; We spin until the event is done.
+  (loop until (done event) do (bt:thread-yield)))
 
 (defmethod process-delivery-queue ((event-delivery queued-event-delivery))
   (unwind-protect
