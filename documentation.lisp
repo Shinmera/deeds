@@ -100,6 +100,9 @@ while still integrating it with the event system and allowing
 extension through that."))
 
 (setdocs
+  (running
+   "Returns T if the event delivery is able to process events. ")
+  
   (start
    "Start the event delivery and make it ready to accept and deliver events.
 
