@@ -19,6 +19,7 @@
                (:file "origin")
                (:file "forward-class-definitions")
                (:file "event")
+               (:file "standard-events")
                (:file "event-delivery")
                (:file "event-loop")
                (:file "handler")
