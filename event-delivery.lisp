@@ -16,6 +16,10 @@
   (:default-initargs
    :delivery-function #'print))
 
+(defmethod print-object ((event-delivery event-delivery) stream)
+  (print-unreadable-object (event-delivery stream :type T :identity T)
+    (format stream "~@[RUNNING~]" (running event-delivery))))
+
 (defmethod running ((stuff list))
   (every #'running stuff))
 
@@ -41,37 +45,65 @@
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
 
-(defclass queued-event-delivery (event-delivery simple-tasks:queued-runner)
-  ())
+(defclass queued-event-delivery (event-delivery)
+  ((front-queue :initform (make-array 100 :adjustable T :fill-pointer 0) :accessor front-queue)
+   (back-queue :initform (make-array 100 :adjustable T :fill-pointer 0) :accessor back-queue)
+   (queue-condition :initform (bt:make-condition-variable :name "QUEUE-CONDITION") :reader queue-condition)
+   (queue-lock :initform (bt:make-lock "QUEUE-LOCK") :reader queue-lock)
+   (queue-thread :initform NIL :accessor queue-thread)))
 
 (defmethod running ((event-delivery queued-event-delivery))
-  (simple-tasks:status= event-delivery :running))
+  (not (null (queue-thread event-delivery))))
 
 (defmethod start ((event-delivery queued-event-delivery))
   (unless (running event-delivery)
-    (simple-tasks:make-runner-thread event-delivery))
+    (bt:with-lock-held ((queue-lock event-delivery))
+      (setf (queue-thread event-delivery)
+            (bt:make-thread (lambda () (process-delivery-queue event-delivery))))))
   event-delivery)
 
 (defmethod stop ((event-delivery queued-event-delivery))
   (when (running event-delivery)
-    (simple-tasks:stop-runner event-delivery))
+    (let ((thread (queue-thread event-delivery)))
+      (setf (queue-thread event-delivery) NIL)
+      (bt:condition-notify (queue-condition event-delivery))
+      (loop while (bt:thread-alive-p thread)
+            for i from 1
+            do (sleep 0.001)
+               (when (= 0 (mod i 100))
+                 (restart-case (error "Queue thread does not seem to be shutting down gracefully.")
+                   (continue ()
+                     :report "Continue waiting.")
+                   (abort ()
+                     :report "Try to forcibly terminate the thread."
+                     (bt:destroy-thread thread)
+                     (return)))))))
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery queued-event-delivery))
-  (simple-tasks:schedule-task
-   (make-instance 'event-task :event event) event-delivery)
+  (bt:with-lock-held ((queue-lock event-delivery))
+    (vector-push-extend event (front-queue event-delivery)))
+  (bt:condition-notify (queue-condition event-delivery))
   event)
 
-(defmethod issue ((blocking-event blocking-event) (event-delivery queued-event-delivery))
-  (simple-tasks:schedule-task
-   (make-instance 'blocking-event-task :event blocking-event) event-delivery)
+(defmethod issue ((event blocking-event) (event-delivery queued-event-delivery))
+  ;; FIXME
   blocking-event)
 
-(defclass event-task (simple-tasks:task)
-  ((event :initarg :event :accessor event-task-event)))
-
-(defmethod simple-tasks:run-task ((event-task event-task))
-  (handle (event-task-event event-task) (simple-tasks:runner event-task)))
-
-(defclass blocking-event-task (event-task simple-tasks:blocking-task)
-  ())
+(defmethod process-delivery-queue ((event-delivery queued-event-delivery))
+  (unwind-protect
+       (loop (loop while (< 0 (length (front-queue event-delivery)))
+                   do (rotatef (front-queue event-delivery)
+                               (back-queue event-delivery))
+                      (let ((queue (back-queue event-delivery)))
+                        (loop for i from 0 below (length queue)
+                              do (handle (aref queue i) event-delivery)
+                                 (setf (aref queue i) NIL))
+                        (setf (fill-pointer queue) 0)))
+             (bt:with-lock-held ((queue-lock event-delivery))
+               (bt:condition-wait (queue-condition event-delivery)
+                                  (queue-lock event-delivery)
+                                  :timeout 0.1))
+             (unless (queue-thread event-delivery)
+               (return)))
+    (setf (queue-thread event-delivery) NIL)))

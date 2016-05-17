@@ -27,10 +27,7 @@
    #:handle
    #:event-delivery
    #:delivery-function
-   #:queued-event-delivery
-   #:event-task
-   #:event-task-event
-   #:blocking-event-task)
+   #:queued-event-delivery)
   ;; event-loop.lisp
   (:export
    #:*standard-event-loop*

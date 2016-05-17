@@ -13,15 +13,13 @@
 ;; (defclass event () ())
 
 (defclass event-delivery () ())
-(defclass queued-event-delivery (event-delivery simple-tasks:queued-runner) ())
+(defclass queued-event-delivery (event-delivery) ())
 (defclass event-loop (queued-event-delivery) ())
 (defclass handler (event-delivery) ())
 (defclass parallel-handler (handler) ())
 (defclass queued-handler (handler queued-event-delivery) ())
 (defclass locally-blocking-handler (handler) ())
 (defclass globally-blocking-handler (handler queued-event-delivery) ())
-(defclass event-task (simple-tasks:task) ())
-(defclass blocking-event-task (event-task) ())
 
 (define-condition event-condition (condition)
   ((event :initarg :event :accessor event-condition-event)))

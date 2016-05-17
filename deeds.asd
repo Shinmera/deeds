@@ -6,7 +6,7 @@
 
 (in-package #:cl-user)
 (asdf:defsystem deeds
-  :version "1.0.0"
+  :version "1.1.0"
   :license "Artistic"
   :author "Nicolas Hafner <shinmera@tymoon.eu>"
   :maintainer "Nicolas Hafner <shinmera@tymoon.eu>"
@@ -26,7 +26,6 @@
                (:file "documentation")
                #-deeds-no-startup (:file "startup"))
   :depends-on (:closer-mop
-               :simple-tasks
                :bordeaux-threads
                :lambda-fiddle
                :form-fiddle))

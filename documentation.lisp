@@ -153,21 +153,7 @@ See HANDLE")
   ((queued-event-delivery type)
    "An event delivery that uses a queue and background thread to deliver events.
 
-See EVENT-DELIVERY")
-  
-  ((event-task type)
-   "A simple container to deliver events using the simple-tasks framework.
-
-See SIMPLE-TASKS:TASK
-See EVENT-TASK-EVENT")
-  
-  (event-task-event
-   "The actual event to be delivered.")
-
-  ((blocking-event-task type)
-   "A simple container to deliver events using the simple-tasks framework, blocking variant.
-
-See EVENT-TASK"))
+See EVENT-DELIVERY"))
 
 ;; event-loop.lisp
 (setdocs
