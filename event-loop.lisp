@@ -6,7 +6,7 @@
 
 (in-package #:org.shirakumo.deeds)
 
-(defvar *standard-event-loop*) ;; See bottom
+(defvar *standard-event-loop* NIL) ;; See bottom
 
 (defgeneric handler (handler event-loop))
 (defgeneric (setf handler) (handler event-loop))
