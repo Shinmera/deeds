@@ -69,7 +69,7 @@
   (when (running event-delivery)
     (let ((thread (queue-thread event-delivery)))
       (when (eql thread (bt:current-thread))
-        (throw 'stop-thread NIL))
+        (invoke-restart 'exit-processing))
       
       (setf (queue-thread event-delivery) NIL)
       (bt:condition-notify (queue-condition event-delivery))
@@ -97,7 +97,7 @@
   (loop until (done event) do (bt:thread-yield)))
 
 (defmethod process-delivery-queue ((event-delivery queued-event-delivery))
-  (catch 'stop-thread
+  (with-simple-restart (exit-processing "Exit the delivery queue processing.") 
     (unwind-protect
          (loop (loop while (< 0 (length (front-queue event-delivery)))
                      do (rotatef (front-queue event-delivery)
