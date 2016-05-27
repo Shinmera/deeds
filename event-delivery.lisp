@@ -42,6 +42,10 @@
   (handle event event-delivery)
   event)
 
+(defmethod handle :around ((event event) (event-delivery event-delivery))
+  (with-simple-restart (abort "Give up trying to handle ~a" event)
+    (call-next-method)))
+
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
 
