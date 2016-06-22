@@ -26,9 +26,9 @@
      (some (lambda (a) (find-class-slot-for-compound slot-ish a)) (rest compound)))
     (symbol (find-class-slot-fuzzy slot-ish compound))))
 
-(defun build-fuzzy-slot-accessor (slot-ish class instance)
-  (let* ((slot (or (find-class-slot-for-compound slot-ish class)
-                   (error "Don't know how to access the variable ~s in class ~s" slot-ish class)))
+(defun build-fuzzy-slot-accessor (slot-ish class-ish instance)
+  (let* ((slot (or (find-class-slot-for-compound slot-ish class-ish)
+                   (error "Don't know how to access the variable ~s in class ~s" slot-ish class-ish)))
          (accessor (find-slot-accessor slot)))
     (values
      (cond (accessor
@@ -37,10 +37,10 @@
             `(slot-value ,instance ',(c2mop:slot-definition-name slot))))
      slot)))
 
-(defmacro with-fuzzy-slot-bindings (vars (instance class) &body body)
+(defmacro with-fuzzy-slot-bindings (vars (instance class-ish) &body body)
   `(symbol-macrolet ,(loop for var in vars
                            collect (destructuring-bind (name &optional (slot-ish name)) (if (listp var) var (list var))
-                                     `(,name ,(build-fuzzy-slot-accessor slot-ish class instance))))
+                                     `(,name ,(build-fuzzy-slot-accessor slot-ish class-ish instance))))
      ,@body))
 
 (defun copy-hash-table (old &key (test (hash-table-test old))

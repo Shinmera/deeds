@@ -610,6 +610,11 @@ See HANDLER-CONDITION-THREAD")
   ((handler type)
    "Base class for all handlers to which events can be delivered.
 
+In order for an event to be issued to this, the following criteria should
+apply to the event. First, the event must pass the type test against the value
+from the handler's EVENT-TYPE slot. Note that the event-type can be a compound
+type. Second, the event must pass the handler's FILTER test as per TEST-FILTER.
+
 See EVENT-DELIVERY
 See NAME
 See EVENT-TYPE
@@ -718,7 +723,10 @@ See WITH-ONE-TIME-HANDLER")
 
 ARGS must be a list of at least one value, which must be a symbol that is
 bound to the event instance. The rest of the args are slots of the event,
-bound by WITH-FUZZY-SLOT-BINDINGS.
+bound by WITH-FUZZY-SLOT-BINDINGS. Note that as per the limitation on
+event-type specifiers arising from FIND-CLASS-SLOT-FOR-COMPOUND, only
+direct class-name types or compound types consisting of OR and AND are
+possible for the EVENT-TYPE.
 
 The actual body forms are composed into a lambda form which is passed
 as the :DELIVERY-FUNCTION argument to MAKE-HANDLER alongside with
@@ -859,10 +867,21 @@ If no appropriate slot can be found, NIL is returned instead.
 
 See CLASS-ALL-DIRECT-SLOTS")
 
+  (find-class-slot-for-compound
+   "Attempts to find a slot on COMPOUND that matches SLOT-ISH
+
+This allows compound type specifiers for the class, but only for OR and AND.
+For the purpose of finding the appropriate slot, the semantics of the compound
+are disregarded. The compound is searched in depth-first order and the first
+matching slot wins. The actual slot finding for each class is performed by
+FIND-CLASS-SLOT-FUZZY.
+
+See FIND-CLASS-SLOT-FUZZY")
+
   (build-fuzzy-slot-accessor
    "Constructs an appropriate accessor form to read/write the given slot-ish.
 
-FIND-CLASS-SLOT-FUZZY is used to find an appropriate slot.
+FIND-CLASS-SLOT-FOR-COMPOUND is used to find an appropriate slot.
 If no appropriate slot can be found, an error is signalled.
 
 FIND-SLOT-ACCESSOR is used to detect if an accessor can be
