@@ -19,8 +19,15 @@
                    (find slot-ish (c2mop:slot-definition-readers slot) :test #'name~=))
           do (return slot))))
 
+(defun find-class-slot-for-compound (slot-ish compound)
+  (etypecase compound
+    (cons
+     (ecase (first compound) (and) (or))
+     (some (lambda (a) (find-class-slot-for-compound slot-ish a)) (rest compound)))
+    (symbol (find-class-slot-fuzzy slot-ish compound))))
+
 (defun build-fuzzy-slot-accessor (slot-ish class instance)
-  (let* ((slot (or (find-class-slot-fuzzy slot-ish class)
+  (let* ((slot (or (find-class-slot-for-compound slot-ish class)
                    (error "Don't know how to access the variable ~s in class ~s" slot-ish class)))
          (accessor (find-slot-accessor slot)))
     (values
