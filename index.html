@@ -35,6 +35,7 @@
 
       #documentation pre{
           margin-left: 20px;
+          overflow: auto;
       }
 
       #symbol-index>ul{
@@ -163,19 +164,7 @@ See QUEUED-EVENT-DELIVERY
 See HANDLERS
 See EVENT-LOOP-LOCK
 See SORTED-EVENT-LOOP
-See COMPILED-EVENT-LOOP</pre> </article> </li><li> <a name="DEEDS:EVENT-SLOT"> </a> <article> <header class="class"> <span class="type">class</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-SLOT">EVENT-SLOT</a></code></h4>  </header> <pre class="docstring">Base class for the event-slot classes.
-
-Contains one extra field (:MUTABLE) that allows specification of
-whether the slot is allowed to be mutated through a writer.
-If the user attempts to specify a writer (or accessor) on the slot
-while :MUTABLE NIL, a warning of type IMMUTABLE-EVENT-SLOT-HAS-WRITER
-is signalled. If an attempt is made to write to a slot that has been
-designated immutable, a continuable error of type IMMUTABLE-EVENT-SLOT-MODIFIED
-is signalled. 
-
-By default slots are immutable.
-
-See EVENT-SLOT-MUTABLE</pre> </article> </li><li> <a name="DEEDS:GLOBALLY-BLOCKING-HANDLER"> </a> <article> <header class="class"> <span class="type">class</span>  <h4 class="name"><code><a href="#DEEDS:GLOBALLY-BLOCKING-HANDLER">GLOBALLY-BLOCKING-HANDLER</a></code></h4>  </header> <pre class="docstring">A handler that globally blocks all issuing threads until it is done.
+See COMPILED-EVENT-LOOP</pre> </article> </li><li> <a name="DEEDS:EVENT-SLOT"> </a> <article> <header class="class"> <span class="type">class</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-SLOT">EVENT-SLOT</a></code></h4>  </header> <pre class="docstring">Superclass for event slots with an option</pre> </article> </li><li> <a name="DEEDS:GLOBALLY-BLOCKING-HANDLER"> </a> <article> <header class="class"> <span class="type">class</span>  <h4 class="name"><code><a href="#DEEDS:GLOBALLY-BLOCKING-HANDLER">GLOBALLY-BLOCKING-HANDLER</a></code></h4>  </header> <pre class="docstring">A handler that globally blocks all issuing threads until it is done.
 
 The difference to LOCALLY-BLOCKING-HANDLER is only apparent in the case
 where multiple event loops issue to this same handler at the same time,
@@ -280,9 +269,7 @@ See IDENTIFIED-EVENT</pre> </article> </li><li> <a name="DEEDS:STREAM-PAYLOAD-EV
 See PAYLOAD-EVENT
 See STREAM-EVENT</pre> </article> </li><li> <a name="DEEDS:WARNING-EVENT"> </a> <article> <header class="class"> <span class="type">class</span>  <h4 class="name"><code><a href="#DEEDS:WARNING-EVENT">WARNING-EVENT</a></code></h4>  </header> <pre class="docstring">Delivers a warning message.
 
-See MESSAGE-EVENT</pre> </article> </li><li> <a name="DEEDS:EVENT-CONDITION"> </a> <article> <header class="condition"> <span class="type">condition</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-CONDITION">EVENT-CONDITION</a></code></h4>  </header> <pre class="docstring">Condition base class for conditions related to events.
-
-See EVENT-CONDITION-EVENT</pre> </article> </li><li> <a name="DEEDS:EVENT-LOOP-CONDITION"> </a> <article> <header class="condition"> <span class="type">condition</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-LOOP-CONDITION">EVENT-LOOP-CONDITION</a></code></h4>  </header> <pre class="docstring">Condition base class for conditions related to event-loops.
+See MESSAGE-EVENT</pre> </article> </li><li> <a name="DEEDS:EVENT-CONDITION"> </a> <article> <header class="condition"> <span class="type">condition</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-CONDITION">EVENT-CONDITION</a></code></h4>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:EVENT-LOOP-CONDITION"> </a> <article> <header class="condition"> <span class="type">condition</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-LOOP-CONDITION">EVENT-LOOP-CONDITION</a></code></h4>  </header> <pre class="docstring">Condition base class for conditions related to event-loops.
 
 See EVENT-LOOP-CONDITION-EVENT-LOOP</pre> </article> </li><li> <a name="DEEDS:EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR"> </a> <article> <header class="condition"> <span class="type">condition</span>  <h4 class="name"><code><a href="#DEEDS:EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR">EVENT-LOOP-HANDLER-DEPENDENCY-CYCLE-ERROR</a></code></h4>  </header> <pre class="docstring">An error that is signalled whenever a dependency cycle is detected within the handlers.
 
@@ -334,15 +321,7 @@ to the MAKE-INSTANCE call: LOOP will instead denote the event-loop/s
 to which one instance each will be issued, defaulting to
 *STANDARD-EVENT-LOOP*.
 
-See *STANDARD-EVENT-LOOP*</pre> </article> </li><li> <a name="DEEDS:COMPUTE-ALL-DIRECT-SLOTS"> </a> <article> <header class="function"> <span class="type">function</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:COMPUTE-ALL-DIRECT-SLOTS">COMPUTE-ALL-DIRECT-SLOTS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">CLASS</code><code>)</code>  </header> <pre class="docstring">Computes all direct slots of the given class, including those of its superclasses.
-
-This simply traverses the class hierarchy upwards, gathering all
-direct-slots instances along the way. If one class along the way
-is a CACHED-SLOTS-CLASS, the CLASS-ALL-DIRECT-SLOTS value is used
-directly instead of traversing further. This does not apply for
-the passed class.
-
-See CACHED-SLOTS-CLASS</pre> </article> </li><li> <a name="DEEDS:MAKE-HANDLER"> </a> <article> <header class="function"> <span class="type">function</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:MAKE-HANDLER">MAKE-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST OPTIONS &amp;KEY (LOOP *STANDARD-EVENT-LOOP*) (CLASS 'QUEUED-HANDLER)
+See *STANDARD-EVENT-LOOP*</pre> </article> </li><li> <a name="DEEDS:COMPUTE-ALL-DIRECT-SLOTS"> </a> <article> <header class="function"> <span class="type">function</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:COMPUTE-ALL-DIRECT-SLOTS">COMPUTE-ALL-DIRECT-SLOTS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">CLASS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:MAKE-HANDLER"> </a> <article> <header class="function"> <span class="type">function</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:MAKE-HANDLER">MAKE-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST OPTIONS &amp;KEY (LOOP *STANDARD-EVENT-LOOP*) (CLASS 'QUEUED-HANDLER)
  &amp;ALLOW-OTHER-KEYS</code><code>)</code>  </header> <pre class="docstring">Creates a new handler instance and takes care of registering it.
 
 Creating a new handler this way will simply construct the handler object,
@@ -461,12 +440,7 @@ See SORTED-EVENT-LOOP</pre> </article> </li><li> <a name="DEEDS:START"> </a> <ar
 
 If the delivery is already running this does nothing.</pre> </article> </li><li> <a name="DEEDS:STOP"> </a> <article> <header class="generic"> <span class="type">generic</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:STOP">STOP</a></code></h4> <code class="qualifiers"></code> <code class="arguments">EVENT-DELIVERY</code><code>)</code>  </header> <pre class="docstring">Stop the event delivery to prevent it from accepting and delivering events.
 
-If the delivery is already stopped this does nothing.</pre> </article> </li><li> <a name="DEEDS:DEFINE-CACHED-SLOTS-CLASS"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-CACHED-SLOTS-CLASS">DEFINE-CACHED-SLOTS-CLASS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Shorthand macro around defclass to define a cached-slots-class.
-
-All this does is wrap the defclass in an EVAL-WHEN and add the
-metaclass option for cached-slots-class.
-
-See CACHED-SLOTS-CLASS</pre> </article> </li><li> <a name="DEEDS:DEFINE-COMMAND"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-COMMAND">DEFINE-COMMAND</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Define a command.
+If the delivery is already stopped this does nothing.</pre> </article> </li><li> <a name="DEEDS:DEFINE-CACHED-SLOTS-CLASS"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-CACHED-SLOTS-CLASS">DEFINE-CACHED-SLOTS-CLASS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:DEFINE-COMMAND"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-COMMAND">DEFINE-COMMAND</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Define a command.
 
 This is a combinging macro that does three things:
   . Define an event of NAME with the necessary fields from ARGS.
@@ -492,10 +466,7 @@ SLOT-ARG   ::= keyword value
 The purpose of defining commands is to allow something akin to a
 function definition that can be treated as such for most purposes
 while still integrating it with the event system and allowing
-extension through that.</pre> </article> </li><li> <a name="DEEDS:DEFINE-EVENT"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-EVENT">DEFINE-EVENT</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Shorthand convenience macro around DEFCLASS to define new event classes.
-
-Pushes the EVENT-CLASS as :METACLASS and EVENT as direct-superclass
-if it does not already appear somewhere as a transitive superclass.</pre> </article> </li><li> <a name="DEEDS:DEFINE-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-HANDLER">DEFINE-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Define and register a new event handler on a particular event loop.
+extension through that.</pre> </article> </li><li> <a name="DEEDS:DEFINE-EVENT"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-EVENT">DEFINE-EVENT</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:DEFINE-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:DEFINE-HANDLER">DEFINE-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Define and register a new event handler on a particular event loop.
 
 This simply expands to a WITH-HANDLER form with a few extra options
 to make things easier. Most notably, NAME is transformed (quoted) into
@@ -509,13 +480,7 @@ Supports one extra keyword argument that will not be passed along
 to the MAKE-INSTANCE call: LOOP will instead denote the event-loop
 to which the event is issued, defaulting to *STANDARD-EVENT-LOOP*.
 
-See *STANDARD-EVENT-LOOP*</pre> </article> </li><li> <a name="DEEDS:HERE"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:HERE">HERE</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">A macro that tries to figure out the most appropriate identifier for where this is.</pre> </article> </li><li> <a name="DEEDS:WITH-AWAITING"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-AWAITING">WITH-AWAITING</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-FUZZY-SLOT-BINDINGS"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-FUZZY-SLOT-BINDINGS">WITH-FUZZY-SLOT-BINDINGS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Establishes a binding context similar to WITH-SLOTS and WITH-ACCESSORS but using the most appropriate way to access a slot, and a fuzzy manner of identifying slots.
-
-Each VAR can either be a list of NAME SLOT-ISH, or simply the SLOT-ISH which will be used as the name as well.
-
-You must pass the class explicitly since we have to be able to analyse the slots of the class during compile time.
-
-See BUILD-FUZZY-SLOT-ACCESSOR</pre> </article> </li><li> <a name="DEEDS:WITH-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-HANDLER">WITH-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Convenient macro to construct a handler.
+See *STANDARD-EVENT-LOOP*</pre> </article> </li><li> <a name="DEEDS:HERE"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:HERE">HERE</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-AWAITING"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-AWAITING">WITH-AWAITING</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-FUZZY-SLOT-BINDINGS"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-FUZZY-SLOT-BINDINGS">WITH-FUZZY-SLOT-BINDINGS</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-HANDLER">WITH-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Convenient macro to construct a handler.
 
 ARGS must be a list of at least one value, which must be a symbol that is
 bound to the event instance. The rest of the args are slots of the event,
@@ -531,21 +496,13 @@ origin is set to the :NAME option.
 
 See MAKE-HANDLER
 See WITH-FUZZY-SLOT-BINDINGS
-See WITH-ORIGIN</pre> </article> </li><li> <a name="DEEDS:WITH-IMMUTABLE-SLOTS-UNLOCKED"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-IMMUTABLE-SLOTS-UNLOCKED">WITH-IMMUTABLE-SLOTS-UNLOCKED</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Unlocks immutable slots, allowing you to modify them.
-
-This simply automatically calls the CONTINUE restart when an error of type
-IMMUTABLE-EVENT-SLOT-MODIFIED is signalled.
-
-See EVENT-SLOT</pre> </article> </li><li> <a name="DEEDS:WITH-ONE-TIME-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-ONE-TIME-HANDLER">WITH-ONE-TIME-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Constructs a handler that can only handle a single event before being deregistered again.
+See WITH-ORIGIN</pre> </article> </li><li> <a name="DEEDS:WITH-IMMUTABLE-SLOTS-UNLOCKED"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-IMMUTABLE-SLOTS-UNLOCKED">WITH-IMMUTABLE-SLOTS-UNLOCKED</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-ONE-TIME-HANDLER"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-ONE-TIME-HANDLER">WITH-ONE-TIME-HANDLER</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Constructs a handler that can only handle a single event before being deregistered again.
 
 Defaults the class to ONE-TIME-HANDLER.
 
 See WITH-HANDLER
 See ONE-TIME-HANDLER
-See DEREGISTER-HANDLER</pre> </article> </li><li> <a name="DEEDS:WITH-ORIGIN"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-ORIGIN">WITH-ORIGIN</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">Binds *ORIGIN* to a new value, which is by default figured out by HERE.
-
-See *ORIGIN*
-See HERE</pre> </article> </li><li> <a name="DEEDS:WITH-RESPONSE"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-RESPONSE">WITH-RESPONSE</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">A macro to de-asynchronise waiting for a response to an event.
+See DEREGISTER-HANDLER</pre> </article> </li><li> <a name="DEEDS:WITH-ORIGIN"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-ORIGIN">WITH-ORIGIN</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring"/> </article> </li><li> <a name="DEEDS:WITH-RESPONSE"> </a> <article> <header class="macro"> <span class="type">macro</span>  <code>(</code><h4 class="name"><code><a href="#DEEDS:WITH-RESPONSE">WITH-RESPONSE</a></code></h4> <code class="qualifiers"></code> <code class="arguments">&amp;REST ARGS</code><code>)</code>  </header> <pre class="docstring">A macro to de-asynchronise waiting for a response to an event.
 
 More specifically, this construct allows you to circumvent having to use
 callbacks and instead allows the handling of an event that is in response
