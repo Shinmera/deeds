@@ -80,7 +80,7 @@
       (loop while (bt:thread-alive-p thread)
             for i from 1
             do (sleep 0.001)
-               (when (= 0 (mod i 100))
+               (when (= 0 (mod i 1000))
                  (restart-case (error "Queue thread does not seem to be shutting down gracefully.")
                    (continue ()
                      :report "Continue waiting.")
