@@ -93,6 +93,10 @@
                          thereis (eval-test form)))
                   (not
                    (not (eval-test (second test))))
+                  (function
+                   (symbol-function (second test)))
+                  (quote
+                   (second test))
                   (T
                    (apply (first test)
                           (loop for form in (cdr test) collect (eval-test form))))))
