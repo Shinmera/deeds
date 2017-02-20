@@ -161,9 +161,14 @@
               (bt:with-lock-held ((issue-synchronizer-lock ,handler))
                 (register-handler ,handler ,loop-g)
                 ,setup-form
-                (when (bt:condition-wait (condition-variable ,handler)
-                                         (issue-synchronizer-lock ,handler)
-                                         :timeout ,timeout)
+                (when (loop for condition = (bt:condition-wait (condition-variable ,handler)
+                                                               (issue-synchronizer-lock ,handler)
+                                                               :timeout ,timeout)
+                            for event = (response-event ,handler)
+                            do (cond ((not condition) (return NIL))
+                                     ((and condition event) (return T)))
+                               ;; Just to make sure.
+                               (sleep 0.001))
                   (let ((,event (response-event ,handler)))
                     (declare (ignorable ,event))
                     (with-fuzzy-slot-bindings ,response-args (,event ,response-event)
