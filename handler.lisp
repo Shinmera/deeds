@@ -116,7 +116,7 @@
            (setf ,self ,new)
            (values ,new ,old))))))
 
-(defclass one-time-handler (queued-handler)
+(defclass one-time-handler (handler)
   ())
 
 (defmethod handle :around ((event event) (handler one-time-handler))
