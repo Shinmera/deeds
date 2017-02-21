@@ -101,20 +101,32 @@
   (loop until (done event) do (bt:thread-yield)))
 
 (defmethod process-delivery-queue ((event-delivery queued-event-delivery))
-  (with-simple-restart (exit-processing "Exit the delivery queue processing.") 
-    (unwind-protect
-         (loop (loop while (< 0 (length (front-queue event-delivery)))
-                     do (rotatef (front-queue event-delivery)
-                                 (back-queue event-delivery))
-                        (let ((queue (back-queue event-delivery)))
-                          (loop for i from 0 below (length queue)
-                                do (handle (aref queue i) event-delivery)
-                                   (setf (aref queue i) NIL))
-                          (setf (fill-pointer queue) 0)))
-               (bt:with-lock-held ((queue-lock event-delivery))
-                 (bt:condition-wait (queue-condition event-delivery)
-                                    (queue-lock event-delivery)
-                                    :timeout 0.1))
-               (unless (queue-thread event-delivery)
-                 (return)))
-      (setf (queue-thread event-delivery) NIL))))
+  ;; Process the queue by handling each event, clearing it,
+  ;; and finally resetting the fill-pointer to empty it.
+  (flet ((process-queue (queue)
+           (loop for i from 0 below (length queue)
+                 do (handle (aref queue i) event-delivery)
+                    (setf (aref queue i) NIL))
+           (setf (fill-pointer queue) 0)))
+    (let ((lock (queue-lock event-delivery)))
+      ;; This system works as follows:
+      ;; The lock is acquired, the two queues are swapped out,
+      ;; the (now) back-queue is processed while everything else is
+      ;; unlocked. The idea being that processing the queue can take
+      ;; a long time, so we need to make sure the lock stays away for
+      ;; that time. Then the lock is reacquired so that we can wait
+      ;; on the condition for new events to arrive. A default timeout
+      ;; is used for safety/backup reasons.
+      (bt:acquire-lock lock)
+      (with-simple-restart (exit-processing "Exit the delivery queue processing.")
+        (unwind-protect
+             (loop while (queue-thread event-delivery)
+                   do (rotatef (front-queue event-delivery)
+                               (back-queue event-delivery))
+                      (bt:release-lock lock)
+                      (process-queue (back-queue event-delivery))
+                      (bt:acquire-lock lock)
+                      (when (= 0 (length (front-queue event-delivery)))
+                        (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)))
+          (setf (queue-thread event-delivery) NIL)
+          (ignore-errors (bt:release-lock lock)))))))
