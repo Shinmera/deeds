@@ -127,7 +127,7 @@
 
 (defmacro do-issue (event-type &rest args &key (loop '*standard-event-loop*) &allow-other-keys)
   (let ((args (removef args :loop)))
-    `(issue (make-instance ',event-type ,@args :origin (here)) ,loop)))
+    `(issue (make-instance ',event-type ,@args :origin (or *origin* (here))) ,loop)))
 
 (defun broadcast (event-type &rest args &key (loop *standard-event-loop*) &allow-other-keys)
   (let ((initargs (removef args :loop)))
