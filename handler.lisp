@@ -38,14 +38,14 @@
 (defmethod issue ((event event) (parallel-handler parallel-handler))
   (bt:with-lock-held ((handler-lock parallel-handler))
     (let (thread)
-      (setf thread (bt:make-thread (lambda ()
-                                     (unwind-protect
-                                          (with-simple-restart (abort "Stop the handler thread.")
-                                            (handle event parallel-handler))
-                                       (bt:with-lock-held ((handler-lock parallel-handler))
-                                         (setf (threads parallel-handler)
-                                               (remove thread (threads parallel-handler))))))
-                                   :name (format NIL "~a thread" parallel-handler)))
+      (setf thread (make-thread (lambda ()
+                                  (unwind-protect
+                                       (with-simple-restart (abort "Stop the handler thread.")
+                                         (handle event parallel-handler))
+                                    (bt:with-lock-held ((handler-lock parallel-handler))
+                                      (setf (threads parallel-handler)
+                                            (remove thread (threads parallel-handler))))))
+                                (format NIL "~a thread" parallel-handler)))
       (push thread (threads parallel-handler)))))
 
 (defmethod issue ((blocking-event blocking-event) (parallel-handler parallel-handler))

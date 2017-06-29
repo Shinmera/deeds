@@ -74,3 +74,10 @@
   (handler-bind ((style-warning #'muffle-warning)
                  #+sbcl (sb-ext:compiler-note #'muffle-warning))
     (compile NIL lambda)))
+
+(defun make-thread (func &optional name)
+  (bt:make-thread func
+                  :name name
+                  :initial-bindings `((*trace-output* . ,*trace-output*)
+                                      (*standard-output* . ,*standard-output*)
+                                      (*error-output* . ,*error-output*))))

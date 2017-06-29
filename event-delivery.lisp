@@ -66,7 +66,8 @@
   (unless (running event-delivery)
     (bt:with-lock-held ((queue-lock event-delivery))
       (setf (queue-thread event-delivery)
-            (bt:make-thread (lambda () (process-delivery-queue event-delivery))))))
+            (make-thread (lambda () (process-delivery-queue event-delivery))
+                         (format NIL "~a" event-delivery)))))
   event-delivery)
 
 (defmethod stop ((event-delivery queued-event-delivery))
