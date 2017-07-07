@@ -20,9 +20,12 @@
 
 (defclass event-loop (queued-event-delivery)
   ((handlers :initform (make-hash-table :test 'eql) :accessor handlers)
-   (event-loop-lock :initform (bt:make-recursive-lock "Event loop lock") :accessor event-loop-lock))
+   (event-loop-lock :initform NIL :accessor event-loop-lock))
   (:default-initargs
    :delivery-function NIL))
+
+(defmethod initialize-instance :after ((event-loop event-loop) &key)
+  (setf (event-loop-lock event-loop) (bt:make-recursive-lock (format NIL "~a" event-loop))))
 
 (defmethod issue :before ((event event) (event-loop event-loop))
   (unless (event-loop event)
