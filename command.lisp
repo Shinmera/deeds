@@ -24,7 +24,7 @@
                `(,name ,value))))
     (let ((pure-args (mapcar #'unlist (remove-if #'lambda-keyword-p args))))
       (lambda-fiddle:with-destructured-lambda-list (:required required :optional optional :rest rest :key key) (cdr args)
-        (form-fiddle:with-body-options (body options superclasses (loop '*standard-event-loop)) options
+        (form-fiddle:with-body-options (body options superclasses (loop '*standard-event-loop*)) options-and-body
           `(progn
              (define-event ,name (command-event ,@superclasses)
                (,@(mapcar #'make-req-field required)
