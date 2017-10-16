@@ -106,8 +106,10 @@
   ;; and finally resetting the fill-pointer to empty it.
   (flet ((process-queue (queue)
            (loop for i from 0 below (length queue)
-                 do (handle (aref queue i) event-delivery)
-                    (setf (aref queue i) NIL))
+                 for el = (aref queue i)
+                 do (when el
+                      (handle el event-delivery)
+                      (setf (aref queue i) NIL)))
            (setf (fill-pointer queue) 0)))
     (let ((lock (queue-lock event-delivery)))
       ;; This system works as follows:
