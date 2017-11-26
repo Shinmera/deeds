@@ -130,6 +130,9 @@
                       (process-queue (back-queue event-delivery))
                       (bt:acquire-lock lock)
                       (loop while (= 0 (length (front-queue event-delivery)))
-                            do (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)))
+                            do ;; Workaround for https://github.com/sionescu/bordeaux-threads/issues/35
+                            #-sbcl (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)
+                            #+sbcl (unless (sb-thread:condition-wait (queue-condition event-delivery) lock :timeout 1)
+                                     (bt:acquire-lock lock))))
           (setf (queue-thread event-delivery) NIL)
           (ignore-errors (bt:release-lock lock)))))))
