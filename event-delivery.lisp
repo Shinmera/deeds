@@ -80,6 +80,7 @@
     (let ((thread (queue-thread event-delivery)))
       (when (eql thread (bt:current-thread))
         (invoke-restart 'exit-processing))
+      (setf (queue-thread event-delivery) NIL)
       (bt:with-lock-held ((queue-lock event-delivery))
         (vector-push-extend (make-instance '%stop) (front-queue event-delivery)))
       (bt:condition-notify (queue-condition event-delivery))
@@ -93,8 +94,7 @@
                    (abort ()
                      :report "Try to forcibly terminate the thread."
                      (bt:destroy-thread thread)
-                     (return)))))
-      (setf (queue-thread event-delivery) NIL)))
+                     (return)))))))
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery queued-event-delivery))

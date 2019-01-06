@@ -111,6 +111,10 @@ If the delivery is already running this does nothing.")
   (stop
    "Stop the event delivery to prevent it from accepting and delivering events.
 
+If there are events that the handler has yet to process, there is no
+guarantee that they will be processed before the event delivery is
+stopped.
+
 If the delivery is already stopped this does nothing.")
   
   (issue
@@ -121,7 +125,10 @@ is not specified. However, the order in which events are handled must
 be the same as the order in which they are issued. An event should only
 ever be issued once. There is no check made to ensure this, but issuing
 an event multiple times or on multiple deliveries leads to undefined
-behaviour.")
+behaviour. There is also no check made to see whether the event delivery
+is actually started and ready to accept events. If it is not started,
+the events might pile up or be dropped on the floor. This is, 
+essentially, undefined behaviour.")
   
   (handle
    "Directly handle the event by sending it to the handlers.
