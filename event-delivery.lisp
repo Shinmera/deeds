@@ -70,13 +70,18 @@
                          (format NIL "~a" event-delivery)))))
   event-delivery)
 
+(defclass %stop () ())
+
+(defmethod handle ((_ %stop) (event-delivery queued-event-delivery))
+  (invoke-restart 'exit-processing))
+
 (defmethod stop ((event-delivery queued-event-delivery))
   (when (running event-delivery)
     (let ((thread (queue-thread event-delivery)))
       (when (eql thread (bt:current-thread))
         (invoke-restart 'exit-processing))
-      
-      (setf (queue-thread event-delivery) NIL)
+      (bt:with-lock-held ((queue-lock event-delivery))
+        (vector-push-extend (make-instance '%stop) (front-queue event-delivery)))
       (bt:condition-notify (queue-condition event-delivery))
       (loop while (bt:thread-alive-p thread)
             for i from 1
@@ -88,7 +93,8 @@
                    (abort ()
                      :report "Try to forcibly terminate the thread."
                      (bt:destroy-thread thread)
-                     (return)))))))
+                     (return)))))
+      (setf (queue-thread event-delivery) NIL)))
   event-delivery)
 
 (defmethod issue ((event event) (event-delivery queued-event-delivery))
@@ -123,14 +129,13 @@
       (bt:acquire-lock lock)
       (with-simple-restart (exit-processing "Exit the delivery queue processing.")
         (unwind-protect
-             (loop while (queue-thread event-delivery)
-                   do (rotatef (front-queue event-delivery)
-                               (back-queue event-delivery))
-                      (bt:release-lock lock)
-                      (process-queue (back-queue event-delivery))
-                      (bt:acquire-lock lock)
-                      (loop while (= 0 (length (front-queue event-delivery)))
-                            do (unless (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)
-                                 (bt:acquire-lock lock))))
+             (loop (rotatef (front-queue event-delivery)
+                            (back-queue event-delivery))
+                   (bt:release-lock lock)
+                   (process-queue (back-queue event-delivery))
+                   (bt:acquire-lock lock)
+                   (loop while (= 0 (length (front-queue event-delivery)))
+                         do (unless (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)
+                              (bt:acquire-lock lock))))
           (setf (queue-thread event-delivery) NIL)
           (ignore-errors (bt:release-lock lock)))))))
