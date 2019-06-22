@@ -6,7 +6,7 @@
 
 (asdf:defsystem deeds
   :version "1.1.1"
-  :license "Artistic"
+  :license "zlib"
   :author "Nicolas Hafner <shinmera@tymoon.eu>"
   :maintainer "Nicolas Hafner <shinmera@tymoon.eu>"
   :description "Deeds Extensible Event Delivery System"
