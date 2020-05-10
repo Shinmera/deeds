@@ -19,6 +19,7 @@
                (:file "toolkit")
                (:file "origin")
                (:file "forward-class-definitions")
+               (:file "event-class")
                (:file "event")
                (:file "standard-events")
                (:file "event-delivery")
@@ -30,4 +31,3 @@
                :bordeaux-threads
                :lambda-fiddle
                :form-fiddle))
-
