@@ -135,7 +135,6 @@
                    (process-queue (back-queue event-delivery))
                    (bt:acquire-lock lock)
                    (loop while (= 0 (length (front-queue event-delivery)))
-                         do (unless (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)
-                              (bt:acquire-lock lock))))
+                         do (bt:condition-wait (queue-condition event-delivery) lock :timeout 1)))
           (setf (queue-thread event-delivery) NIL)
           (ignore-errors (bt:release-lock lock)))))))
