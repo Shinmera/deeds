@@ -49,7 +49,7 @@
 (defmethod handle ((event event) (event-delivery event-delivery))
   (funcall (delivery-function event-delivery) event))
 
-(defmethod handle :after ((event blocking-event) (event-delviery event-delivery))
+(defmethod handle :after ((event blocking-event) (event-delivery event-delivery))
   (setf (done event) T))
 
 (defclass queued-event-delivery (event-delivery)
