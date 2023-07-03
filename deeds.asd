@@ -1,14 +1,8 @@
-#|
- This file is a part of deeds
- (c) 2015 Shirakumo http://tymoon.eu (shinmera@tymoon.eu)
- Author: Nicolas Hafner <shinmera@tymoon.eu>
-|#
-
 (asdf:defsystem deeds
   :version "1.1.1"
   :license "zlib"
-  :author "Nicolas Hafner <shinmera@tymoon.eu>"
-  :maintainer "Nicolas Hafner <shinmera@tymoon.eu>"
+  :author "Yukari Hafner <shinmera@tymoon.eu>"
+  :maintainer "Yukari Hafner <shinmera@tymoon.eu>"
   :description "Deeds Extensible Event Delivery System"
   :homepage "https://Shinmera.github.io/deeds/"
   :bug-tracker "https://github.com/Shinmera/deeds/issues"
