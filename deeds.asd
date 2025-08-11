@@ -4,9 +4,9 @@
   :author "Yukari Hafner <shinmera@tymoon.eu>"
   :maintainer "Yukari Hafner <shinmera@tymoon.eu>"
   :description "Deeds Extensible Event Delivery System"
-  :homepage "https://Shinmera.github.io/deeds/"
-  :bug-tracker "https://github.com/Shinmera/deeds/issues"
-  :source-control (:git "https://github.com/Shinmera/deeds.git")
+  :homepage "https://shinmera.com/docs/deeds/"
+  :bug-tracker "https://shinmera.com/project/deeds/issues"
+  :source-control (:git "https://shinmera.com/project/deeds.git")
   :serial T
   :components ((:file "package")
                (:file "class-slots")
